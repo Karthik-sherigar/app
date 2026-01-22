@@ -5,7 +5,7 @@ import io
 from datetime import datetime
 
 class KnowledgeGraphAPITester:
-    def __init__(self, base_url="https://graphai.preview.emergentagent.com"):
+    def __init__(self, base_url="http://localhost:8000"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0

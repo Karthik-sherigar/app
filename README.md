@@ -32,7 +32,46 @@ A modern, professional AI-powered knowledge graph visualization system for explo
   - 🟣 DocumentSection (Purple)
   - 🔷 Component/Application (Cyan)
 
-## 🚀 Getting Started
+## 🚀 Quick Start (Recommended)
+
+Run both frontend and backend with a single command:
+
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+## 💻 Manual Setup & Installation
+
+### Prerequisites
+- Node.js (v14+)
+- Python (v3.8+)
+- MongoDB (running locally or cloud URL)
+
+### 1. Backend Setup
+
+```bash
+cd backend
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Install dependencies
+pip install -r requirements.txt
+# Run the server
+uvicorn server:app --reload --host 0.0.0.0 --port 8000
+```
+> The backend runs at `http://localhost:8000`
+
+### 2. Frontend Setup
+
+```bash
+cd frontend
+# Install dependencies
+npm install
+# Run the application
+npm start
+```
+> The frontend runs at `http://localhost:3000`
+
+## �🚀 Getting Started
 
 ### Demo Queries (Query Mode)
 
@@ -138,8 +177,7 @@ Sample text about Blockchain Technology available in `/app/demo/sample-blockchai
 - Integration with external knowledge bases
 - Multi-language support
 
----
 
-**Built with** ❤️ **using Emergent Platform**
+---
 
 *For academic and research purposes*

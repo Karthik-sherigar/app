@@ -25,7 +25,10 @@ body {
   overflow: hidden;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: 'Manrope', sans-serif;
 }
 
@@ -148,8 +151,15 @@ h1, h2, h3, h4 {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .icon-btn {
@@ -309,7 +319,9 @@ h1, h2, h3, h4 {
   gap: 8px;
 }
 
-.btn-primary, .btn-secondary, .btn-action {
+.btn-primary,
+.btn-secondary,
+.btn-action {
   padding: 10px 16px;
   border: none;
   border-radius: 8px;
@@ -429,6 +441,13 @@ h1, h2, h3, h4 {
   background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.1), transparent 50%);
 }
 
+/* Split View Layout */
+.workspace.split-view {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 0;
+}
+
 .loading-overlay {
   position: absolute;
   inset: 0;
@@ -452,12 +471,76 @@ h1, h2, h3, h4 {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-overlay p {
   font-size: 16px;
   color: var(--text-muted);
+}
+
+.loading-sub {
+  font-size: 14px !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  margin-top: -8px;
+}
+
+/* Enhanced Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 20px;
+  color: var(--text-muted);
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.empty-icon {
+  font-size: 64px;
+  opacity: 0.3;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.empty-state h3 {
+  font-size: 24px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.empty-state p {
+  font-size: 14px;
+  max-width: 400px;
+  text-align: center;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* GRAPH CANVAS */
@@ -829,7 +912,7 @@ h1, h2, h3, h4 {
   .sidebar {
     width: 240px;
   }
-  
+
   .node-details-panel {
     width: 320px;
   }
@@ -839,7 +922,7 @@ h1, h2, h3, h4 {
   .navbar-center {
     display: none;
   }
-  
+
   .sidebar {
     position: fixed;
     left: -260px;
@@ -848,7 +931,7 @@ h1, h2, h3, h4 {
     z-index: 900;
     transition: left 0.3s;
   }
-  
+
   .sidebar.open {
     left: 0;
   }

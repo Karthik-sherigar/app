@@ -1,39 +1,19 @@
 import React, { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
 
-export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
+export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode }) {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
 
+  const layoutRef = useRef(null);
+
+  // Init and Update in a single effect to handle Strict Mode correctness
   useEffect(() => {
     if (!cyRef.current) return;
 
-    const elements = [
-      ...graphData.nodes.map(node => ({
-        data: { 
-          id: node.id, 
-          label: node.label,
-          type: node.type,
-          description: node.description,
-          importance: node.importance 
-        }
-      })),
-      ...graphData.edges.map(edge => ({
-        data: { 
-          source: edge.source, 
-          target: edge.target,
-          label: edge.relation 
-        }
-      }))
-    ];
-
-    if (cyInstance.current) {
-      cyInstance.current.destroy();
-    }
-
+    // Initialize Cytoscape
     cyInstance.current = cytoscape({
       container: cyRef.current,
-      elements,
       style: [
         {
           selector: 'node',
@@ -49,41 +29,11 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
             'height': (ele) => 40 + (ele.data('importance') || 1) * 10,
           }
         },
-        {
-          selector: 'node[type="Concept"]',
-          style: {
-            'background-color': '#3b82f6',
-            'shape': 'ellipse'
-          }
-        },
-        {
-          selector: 'node[type="Prerequisite"]',
-          style: {
-            'background-color': '#f59e0b',
-            'shape': 'ellipse'
-          }
-        },
-        {
-          selector: 'node[type="CodeBlock"]',
-          style: {
-            'background-color': '#22c55e',
-            'shape': 'rectangle'
-          }
-        },
-        {
-          selector: 'node[type="DocumentSection"]',
-          style: {
-            'background-color': '#a855f7',
-            'shape': 'round-rectangle'
-          }
-        },
-        {
-          selector: 'node[type="Component"], node[type="Application"]',
-          style: {
-            'background-color': '#06b6d4',
-            'shape': 'ellipse'
-          }
-        },
+        { selector: 'node[type="Concept"]', style: { 'background-color': '#3b82f6', 'shape': 'ellipse' } },
+        { selector: 'node[type="Prerequisite"]', style: { 'background-color': '#f59e0b', 'shape': 'ellipse' } },
+        { selector: 'node[type="CodeBlock"]', style: { 'background-color': '#22c55e', 'shape': 'rectangle' } },
+        { selector: 'node[type="DocumentSection"]', style: { 'background-color': '#a855f7', 'shape': 'round-rectangle' } },
+        { selector: 'node[type="Component"], node[type="Application"]', style: { 'background-color': '#06b6d4', 'shape': 'ellipse' } },
         {
           selector: 'node:selected',
           style: {
@@ -107,21 +57,68 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
             'text-outline-width': 1
           }
         },
-        {
-          selector: 'edge[label="DEPENDS_ON"]',
-          style: {
-            'line-style': 'dashed'
-          }
-        },
-        {
-          selector: 'edge[label="RELATED_TO"]',
-          style: {
-            'width': 1,
-            'line-style': 'dotted'
-          }
-        }
+        { selector: 'edge[label="DEPENDS_ON"]', style: { 'line-style': 'dashed' } },
+        { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } }
       ],
-      layout: {
+      minZoom: 0.3,
+      maxZoom: 3,
+      wheelSensitivity: 0.2
+    });
+
+    const cy = cyInstance.current;
+
+    // Add elements
+    const elements = [
+      ...graphData.nodes.map(node => ({
+        data: {
+          id: node.id,
+          label: node.label,
+          type: node.type,
+          description: node.description,
+          importance: node.importance
+        }
+      })),
+      ...graphData.edges.map(edge => ({
+        data: {
+          source: edge.source,
+          target: edge.target,
+          label: edge.relation
+        }
+      }))
+    ];
+
+    cy.add(elements);
+
+    // Bind Events
+    cy.on('tap', 'node', (evt) => {
+      const node = evt.target.data();
+      onNodeClick(node);
+    });
+
+    cy.on('mouseover', 'node', (evt) => {
+      const node = evt.target;
+      node.style('background-color', '#6366f1');
+    });
+
+    cy.on('mouseout', 'node', (evt) => {
+      const node = evt.target;
+      const type = node.data('type');
+      const colors = {
+        'Concept': '#3b82f6',
+        'Prerequisite': '#f59e0b',
+        'CodeBlock': '#22c55e',
+        'DocumentSection': '#a855f7',
+        'Component': '#06b6d4',
+        'Application': '#06b6d4'
+      };
+      node.style('background-color', colors[type] || '#3b82f6');
+    });
+
+    // Run Layout in RAF to avoid race conditions with cleanup
+    const runLayout = requestAnimationFrame(() => {
+      if (!cy || cy.destroyed()) return;
+
+      layoutRef.current = cy.layout({
         name: 'cose',
         idealEdgeLength: 100,
         nodeOverlap: 20,
@@ -138,23 +135,54 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
         initialTemp: 200,
         coolingFactor: 0.95,
         minTemp: 1.0
-      },
-      minZoom: 0.3,
-      maxZoom: 3,
-      wheelSensitivity: 0.2
+      });
+      layoutRef.current.run();
     });
 
-    cyInstance.current.on('tap', 'node', (evt) => {
+    // Cleanup
+    return () => {
+      cancelAnimationFrame(runLayout);
+
+      if (layoutRef.current) {
+        try { layoutRef.current.stop(); } catch (e) { }
+        layoutRef.current = null;
+      }
+
+      if (cyInstance.current) {
+        try {
+          if (!cyInstance.current.destroyed()) {
+            cyInstance.current.stop(true, true);
+            cyInstance.current.elements().remove();
+            cyInstance.current.removeAllListeners();
+            cyInstance.current.destroy();
+          }
+        } catch (e) {
+          console.warn("Cleanup error:", e);
+        }
+        cyInstance.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphData]);
+
+  // Bind Events (Separate effect)
+  useEffect(() => {
+    if (!cyInstance.current || cyInstance.current.destroyed()) return;
+
+    const cy = cyInstance.current;
+    cy.removeAllListeners();
+
+    cy.on('tap', 'node', (evt) => {
       const node = evt.target.data();
       onNodeClick(node);
     });
 
-    cyInstance.current.on('mouseover', 'node', (evt) => {
+    cy.on('mouseover', 'node', (evt) => {
       const node = evt.target;
       node.style('background-color', '#6366f1');
     });
 
-    cyInstance.current.on('mouseout', 'node', (evt) => {
+    cy.on('mouseout', 'node', (evt) => {
       const node = evt.target;
       const type = node.data('type');
       const colors = {
@@ -168,19 +196,17 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
       node.style('background-color', colors[type] || '#3b82f6');
     });
 
-    return () => {
-      if (cyInstance.current) {
-        cyInstance.current.destroy();
-      }
-    };
-  }, [graphData]);
+  }, [onNodeClick]);
 
   useEffect(() => {
-    if (cyInstance.current && selectedNode) {
+    if (!cyInstance.current || cyInstance.current.destroyed()) return;
+
+    if (selectedNode) {
       cyInstance.current.nodes().unselect();
       const node = cyInstance.current.getElementById(selectedNode.id);
-      if (node) {
+      if (node && node.length > 0) {
         node.select();
+        cyInstance.current.stop(); // Stop potential previous animations
         cyInstance.current.animate({
           center: { eles: node },
           zoom: 1.5
@@ -190,6 +216,41 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode }) {
       }
     }
   }, [selectedNode]);
+
+  // Handle external node selection from TextResponsePanel
+  useEffect(() => {
+    if (!cyInstance.current || cyInstance.current.destroyed()) return;
+
+    if (externalSelectedNode) {
+      cyInstance.current.nodes().unselect();
+      const node = cyInstance.current.getElementById(externalSelectedNode);
+      if (node && node.length > 0) {
+        node.select();
+        // Zoom to node with animation
+        cyInstance.current.stop();
+        cyInstance.current.animate({
+          center: { eles: node },
+          zoom: 1.8
+        }, {
+          duration: 400,
+          easing: 'ease-in-out'
+        });
+
+        // Flash highlight effect
+        const originalColor = node.style('background-color');
+        node.style('background-color', '#6366f1');
+
+        setTimeout(() => {
+          if (cyInstance.current && !cyInstance.current.destroyed()) {
+            const currentNode = cyInstance.current.getElementById(externalSelectedNode);
+            if (currentNode && currentNode.length > 0) {
+              currentNode.style('background-color', originalColor);
+            }
+          }
+        }, 800);
+      }
+    }
+  }, [externalSelectedNode]);
 
   return (
     <div className="graph-canvas" data-testid="graph-canvas">

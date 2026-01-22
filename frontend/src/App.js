@@ -7,6 +7,7 @@ import Sidebar from "./components/Sidebar";
 import GraphCanvas from "./components/GraphCanvas";
 import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
+import TextResponsePanel from "./components/TextResponsePanel";
 import { Toaster, toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -23,6 +24,8 @@ function App() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [explanationData, setExplanationData] = useState(null);
   const [theme, setTheme] = useState("dark");
+  const [activeTab, setActiveTab] = useState("overview");
+  const [externalSelectedNode, setExternalSelectedNode] = useState(null);
 
   useEffect(() => {
     checkBackendHealth();
@@ -54,7 +57,14 @@ function App() {
         query,
         mode: selectedMode || mode
       });
-      setGraphData(response.data);
+
+      // Handle nested graph structure as per new backend format
+      const data = response.data;
+      // Normalize data: ensure graphData contains nodes/edges at top level for GraphCanvas
+      // but also contains the full response structure for TextResponsePanel
+      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
+      setGraphData(normalizedData);
+
       toast.success("Knowledge graph generated!");
       fetchHistory();
     } catch (e) {
@@ -73,7 +83,11 @@ function App() {
       const response = await axios.post(`${API}/generate-graph-from-pdf`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      setGraphData(response.data);
+
+      const data = response.data;
+      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
+      setGraphData(normalizedData);
+
       toast.success("PDF analyzed successfully!");
       fetchHistory();
     } catch (e) {
@@ -90,13 +104,15 @@ function App() {
       const response = await axios.post(`${API}/expand-node`, {
         node_id: nodeId,
         node_label: nodeLabel,
-        current_graph: graphData
+        current_graph: { nodes: graphData.nodes, edges: graphData.edges }
       });
-      
-      setGraphData({
-        nodes: [...graphData.nodes, ...response.data.nodes],
-        edges: [...graphData.edges, ...response.data.edges]
-      });
+
+      // Expand node returns just nodes/edges usually
+      setGraphData(prev => ({
+        ...prev,
+        nodes: [...prev.nodes, ...response.data.nodes],
+        edges: [...prev.edges, ...response.data.edges]
+      }));
       toast.success("Node expanded!");
     } catch (e) {
       toast.error("Failed to expand node");
@@ -131,19 +147,44 @@ function App() {
     toast.info("Graph reset");
   };
 
-  const handleNodeClick = (node) => {
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const handleNodeClick = React.useCallback((node) => {
     setSelectedNode(node);
     setShowNodePanel(true);
+    setExternalSelectedNode(node?.id);
+  }, []);
+
+  const handleTextNodeClick = React.useCallback((nodeId) => {
+    const node = graphData.nodes.find(n => n.id === nodeId);
+    if (node) {
+      setSelectedNode(node);
+      setExternalSelectedNode(nodeId);
+    }
+  }, [graphData]);
+
+  const handleExpandConcept = async (nodeId) => {
+    const node = graphData.nodes.find(n => n.id === nodeId);
+    if (node) {
+      await expandNode(node.id, node.label);
+    }
   };
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   const restoreFromHistory = (historyItem) => {
-    // In a real app, you'd fetch the saved graph data
-    toast.info("Restoring from history...");
+    if (historyItem.response_data) {
+      const data = historyItem.response_data;
+      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
+      setGraphData(normalizedData);
+      setMode(historyItem.mode);
+      toast.success("Restored from history");
+    } else {
+      toast.info("No data available in history");
+    }
   };
 
   return (
     <div className={`app ${theme}`} data-testid="app-container">
-      <Navbar 
+      <Navbar
         mode={mode}
         setMode={setMode}
         backendStatus={backendStatus}
@@ -151,9 +192,9 @@ function App() {
         theme={theme}
         setTheme={setTheme}
       />
-      
+
       <div className="app-layout">
-        <Sidebar 
+        <Sidebar
           mode={mode}
           generateGraph={generateGraph}
           generateGraphFromPDF={generateGraphFromPDF}
@@ -169,25 +210,45 @@ function App() {
           restoreFromHistory={restoreFromHistory}
           loading={loading}
         />
-        
-        <main className="workspace" data-testid="main-workspace">
+
+        <main className={`workspace ${graphData.nodes.length > 0 ? 'split-view' : ''}`} data-testid="main-workspace">
           {loading && (
             <div className="loading-overlay" data-testid="loading-indicator">
               <div className="spinner"></div>
               <p>Generating Knowledge Graph...</p>
+              <p className="loading-sub">Analyzing Concepts...</p>
             </div>
           )}
-          
-          <GraphCanvas 
-            graphData={graphData}
-            onNodeClick={handleNodeClick}
-            selectedNode={selectedNode}
-          />
+
+          {graphData.nodes.length > 0 ? (
+            <>
+              <TextResponsePanel
+                graphData={graphData}
+                selectedNode={externalSelectedNode}
+                onNodeClick={handleTextNodeClick}
+                onExpandConcept={handleExpandConcept}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+              <GraphCanvas
+                graphData={graphData}
+                onNodeClick={handleNodeClick}
+                selectedNode={selectedNode}
+                externalSelectedNode={externalSelectedNode}
+              />
+            </>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">📊</div>
+              <h3>No Knowledge Graph Yet</h3>
+              <p>Enter a query or upload a document to generate<br />knowledge graph and explanation</p>
+            </div>
+          )}
         </main>
 
         <AnimatePresence>
           {showNodePanel && selectedNode && (
-            <NodeDetailsPanel 
+            <NodeDetailsPanel
               node={selectedNode}
               onClose={() => setShowNodePanel(false)}
               onExpand={() => expandNode(selectedNode.id, selectedNode.label)}
@@ -199,14 +260,14 @@ function App() {
 
         <AnimatePresence>
           {showExplanation && explanationData && (
-            <ExplanationPanel 
+            <ExplanationPanel
               data={explanationData}
               onClose={() => setShowExplanation(false)}
             />
           )}
         </AnimatePresence>
       </div>
-      
+
       <Toaster position="bottom-right" />
     </div>
   );
