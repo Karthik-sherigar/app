@@ -8,6 +8,7 @@ import GraphCanvas from "./components/GraphCanvas";
 import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
+import ProgrammingView from "./components/ProgrammingView";
 import { Toaster, toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -26,6 +27,8 @@ function App() {
   const [theme, setTheme] = useState("dark");
   const [activeTab, setActiveTab] = useState("overview");
   const [externalSelectedNode, setExternalSelectedNode] = useState(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [programmingCode, setProgrammingCode] = useState("");
 
   useEffect(() => {
     checkBackendHealth();
@@ -209,9 +212,11 @@ function App() {
           history={history}
           restoreFromHistory={restoreFromHistory}
           loading={loading}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
         />
 
-        <main className={`workspace ${graphData.nodes.length > 0 ? 'split-view' : ''}`} data-testid="main-workspace">
+        <main className={`workspace ${graphData.nodes.length > 0 && mode !== 'programming' ? 'split-view' : ''}`} data-testid="main-workspace">
           {loading && (
             <div className="loading-overlay" data-testid="loading-indicator">
               <div className="spinner"></div>
@@ -220,7 +225,18 @@ function App() {
             </div>
           )}
 
-          {graphData.nodes.length > 0 ? (
+          {mode === 'programming' ? (
+            <ProgrammingView
+              code={programmingCode}
+              setCode={setProgrammingCode}
+              onGenerateGraph={generateGraph}
+              graphData={graphData}
+              loading={loading}
+              onNodeClick={handleNodeClick}
+              selectedNode={selectedNode}
+              externalSelectedNode={externalSelectedNode}
+            />
+          ) : graphData.nodes.length > 0 ? (
             <>
               <TextResponsePanel
                 graphData={graphData}
