@@ -32,10 +32,12 @@ A modern, professional AI-powered knowledge graph visualization system for explo
   - 🟣 DocumentSection (Purple)
   - 🔷 Component/Application (Cyan)
 
-## 🚀 Quick Start (Recommended)
+### On Windows (PowerShell)
+```powershell
+.\start.ps1
+```
 
-Run both frontend and backend with a single command:
-
+### On Unix/Linux/Mac (Bash)
 ```bash
 chmod +x start.sh
 ./start.sh
