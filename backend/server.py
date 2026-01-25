@@ -375,14 +375,25 @@ Depth: 0=core concept
 Create 15-25 nodes. Return ONLY valid JSON."""
         
         elif request.mode == "programming":
-            prompt = f"""Analyze this code and create a knowledge graph showing its logic flow:
+            prompt = f"""You are a senior software architect. Analyze the following code and create a high-level logic flow visualization.
 
+DO NOT create nodes for every variable or print statement. Instead, focus on the "Story" of the code:
+1. **Modules/Classes**: Represent the main structural containers.
+2. **Logic Phases**: Group code into logical blocks (e.g., "Initialization", "Data Processing", "Main Loop", "Validation").
+3. **Control Flow**: Capture critical decision points (If/Else) or recursive loops as nodes.
+4. **Key Operations**: Show major functions or state changes.
+
+CODE TO ANALYZE:
 {request.query}
 
-Format as JSON with "answer" (explanation), "sections", and "graph" keys.
-Types: CodeBlock, Component, Variable, Function
-Relations: CALLS, USES, RETURNS, DEPENDS_ON
-Create 10-20 nodes. Return valid JSON only."""
+Format as JSON with:
+- "answer": A clear, step-by-step summary of how the code executes.
+- "sections": Detailed breakdown of components.
+- "graph": Nodes and Edges.
+  - Node Types: "Component" (structural), "LogicPhase" (process block), "Decision" (if/else), "DataStore" (main variables/db).
+  - Relations: "FLOWS_TO" (sequence), "CALLS" (function calls), "CONTAINS" (hierarchy).
+
+Create 8-12 meaningful nodes that explain the code flow. Return ONLY valid JSON."""
         
         
         response_text = await generate_with_fallback('gemini-2.5-flash', prompt)
@@ -407,7 +418,7 @@ Create 10-20 nodes. Return valid JSON only."""
                 neo4j_service.insert_relationships(graph_data["graph"]["edges"])
         
         # 2. SAVE TEXT TO SQL (with original JSON structure for fallback/metadata)
-        session_service.save_query_history(request.query, json.dumps(graph_data))
+        session_service.save_query_history(request.query, json.dumps(graph_data), mode=request.mode)
         
         return graph_data
     
@@ -465,7 +476,7 @@ Create 15-30 nodes. Return valid JSON only."""
                 neo4j_service.insert_relationships(graph_data["graph"]["edges"])
         
         # 2. SAVE TEXT TO SQL
-        session_service.save_query_history(f"PDF: {file.filename}", json.dumps(graph_data))
+        session_service.save_query_history(f"PDF: {file.filename}", json.dumps(graph_data), mode="pdf")
         
         return graph_data
     
@@ -568,8 +579,8 @@ async def get_history():
             items.append({
                 "id": str(record.id),
                 "query": record.query,
-                "mode": "query", 
-                "timestamp": record.timestamp,
+                "mode": getattr(record, 'mode', 'query'), # Get actual mode from DB
+                "timestamp": record.timestamp.isoformat() + "Z" if record.timestamp.tzinfo is None else record.timestamp.isoformat(),
                 "preview": record.query[:50] + "..." if len(record.query) > 50 else record.query,
                 "response_data": response_data
             })
