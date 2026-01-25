@@ -20,8 +20,9 @@ class QueryHistory(Base):
     __tablename__ = "query_history"
     id = Column(Integer, primary_key=True, index=True)
     query = Column(String, index=True)
+    mode = Column(String, default="query") # Added mode column
     answer = Column(Text)  # JSON string or plain text
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class SessionService:
     def __init__(self):
@@ -34,18 +35,18 @@ class SessionService:
         finally:
             db.close()
 
-    def save_query_history(self, query: str, answer_data: str):
+    def save_query_history(self, query: str, answer_data: str, mode: str = "query"):
         """
         Save a user query and its response to the history.
         """
         try:
             db = SessionLocal()
-            db_item = QueryHistory(query=query, answer=str(answer_data)) # Store as string
+            db_item = QueryHistory(query=query, answer=str(answer_data), mode=mode)
             db.add(db_item)
             db.commit()
             db.refresh(db_item)
             db.close()
-            logger.info(f"Saved query: {query}")
+            logger.info(f"Saved {mode} history: {query}")
             return db_item
         except Exception as e:
             logger.error(f"Error saving query history: {e}")
