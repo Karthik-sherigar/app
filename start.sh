@@ -6,22 +6,21 @@ trap 'kill $(jobs -p)' SIGINT SIGTERM EXIT
 echo "Starting AI Knowledge Graph Platform..."
 
 # Start Backend
-# Start Neo4j (Local)
-if [ -d "neo4j_local" ]; then
-    echo "Starting Neo4j locally..."
-    ./neo4j_local/bin/neo4j start || echo "Neo4j already running or failed to start"
-else
-    echo "Neo4j local directory not found. Please install Neo4j."
-fi
-
 echo "🚀 Starting Backend (Port 8000)..."
-cd backend
+cd backend || exit
+
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
-    python3 -m venv venv
+    python -m venv venv
 fi
 
-source venv/bin/activate
+# Detect OS for activation
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    source venv/Scripts/activate
+else
+    source venv/bin/activate
+fi
+
 echo "Installing/Updating backend dependencies..."
 pip install -r requirements.txt
 
@@ -29,12 +28,12 @@ pip install -r requirements.txt
 uvicorn server:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
-# Wait for backend to be ready (optional check)
+# Wait for backend to be ready
 sleep 2
 
 # Start Frontend
 echo "🚀 Starting Frontend (Port 3000)..."
-cd ../frontend
+cd ../frontend || exit
 if [ ! -d "node_modules" ]; then
     echo "Installing frontend dependencies..."
     npm install
