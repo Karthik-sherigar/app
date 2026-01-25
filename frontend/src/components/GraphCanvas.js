@@ -1,5 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
+import dagre from "cytoscape-dagre";
+
+if (typeof cytoscape('core', 'dagre') !== 'function') {
+  cytoscape.use(dagre);
+}
 
 export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode }) {
   const cyRef = useRef(null);
@@ -31,9 +36,10 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         },
         { selector: 'node[type="Concept"]', style: { 'background-color': '#3b82f6', 'shape': 'ellipse' } },
         { selector: 'node[type="Prerequisite"]', style: { 'background-color': '#f59e0b', 'shape': 'ellipse' } },
-        { selector: 'node[type="CodeBlock"]', style: { 'background-color': '#22c55e', 'shape': 'rectangle' } },
+        { selector: 'node[type="CodeBlock"], node[type="LogicPhase"]', style: { 'background-color': '#10b981', 'shape': 'round-rectangle' } },
+        { selector: 'node[type="Decision"]', style: { 'background-color': '#f43f5e', 'shape': 'diamond', 'width': 60, 'height': 60 } },
         { selector: 'node[type="DocumentSection"]', style: { 'background-color': '#a855f7', 'shape': 'round-rectangle' } },
-        { selector: 'node[type="Component"], node[type="Application"]', style: { 'background-color': '#06b6d4', 'shape': 'ellipse' } },
+        { selector: 'node[type="Component"], node[type="Application"], node[type="DataStore"]', style: { 'background-color': '#06b6d4', 'shape': 'hexagon' } },
         {
           selector: 'node:selected',
           style: {
@@ -45,7 +51,7 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         {
           selector: 'edge',
           style: {
-            'width': 2,
+            'width': 3,
             'line-color': '#4b5563',
             'target-arrow-color': '#4b5563',
             'target-arrow-shape': 'triangle',
@@ -54,9 +60,11 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
             'font-size': '10px',
             'color': '#9ca3af',
             'text-outline-color': '#0b1220',
-            'text-outline-width': 1
+            'text-outline-width': 1,
+            'arrow-scale': 1.5
           }
         },
+        { selector: 'edge[label="FLOWS_TO"]', style: { 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'width': 4 } },
         { selector: 'edge[label="DEPENDS_ON"]', style: { 'line-style': 'dashed' } },
         { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } }
       ],
@@ -118,7 +126,18 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
     const runLayout = requestAnimationFrame(() => {
       if (!cy || cy.destroyed()) return;
 
-      layoutRef.current = cy.layout({
+      const isProgramming = graphData.nodes.some(n => n.type === 'Decision' || n.type === 'LogicPhase');
+
+      layoutRef.current = cy.layout(isProgramming ? {
+        name: 'dagre',
+        rankDir: 'TB',
+        nodeSep: 60,
+        edgeSep: 40,
+        rankSep: 80,
+        padding: 50,
+        animate: true,
+        animationDuration: 500
+      } : {
         name: 'cose',
         idealEdgeLength: 100,
         nodeOverlap: 20,
