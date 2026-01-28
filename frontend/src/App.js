@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import GraphCanvas from "./components/GraphCanvas";
+import VisualJourney from "./components/VisualJourney/VisualJourney";
 import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
 import ProgrammingView from "./components/ProgrammingView";
 import BottomInputBar from "./components/BottomInputBar";
 import { Toaster, toast } from "sonner";
+import { MessageSquare, X } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -30,6 +32,8 @@ function App() {
   const [externalSelectedNode, setExternalSelectedNode] = useState(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [programmingCode, setProgrammingCode] = useState("");
+  const [showChat, setShowChat] = useState(false);
+  const [hasNewResponse, setHasNewResponse] = useState(false);
 
   useEffect(() => {
     checkBackendHealth();
@@ -69,6 +73,10 @@ function App() {
       const normalizedData = data.graph ? { ...data.graph, ...data } : data;
       setGraphData(normalizedData);
 
+      if (!showChat) {
+        setHasNewResponse(true);
+      }
+
       toast.success("Knowledge graph generated!");
       fetchHistory();
     } catch (e) {
@@ -91,6 +99,10 @@ function App() {
       const data = response.data;
       const normalizedData = data.graph ? { ...data.graph, ...data } : data;
       setGraphData(normalizedData);
+
+      if (!showChat) {
+        setHasNewResponse(true);
+      }
 
       toast.success("PDF analyzed successfully!");
       fetchHistory();
@@ -180,6 +192,11 @@ function App() {
       const normalizedData = data.graph ? { ...data.graph, ...data } : data;
       setGraphData(normalizedData);
       setMode(historyItem.mode);
+
+      if (!showChat) {
+        setHasNewResponse(true);
+      }
+
       toast.success("Restored from history");
     } else {
       toast.info("No data available in history");
@@ -217,7 +234,7 @@ function App() {
           setIsCollapsed={setIsSidebarCollapsed}
         />
 
-        <main className={`workspace ${graphData.nodes.length > 0 && mode !== 'programming' ? 'split-view' : ''}`} data-testid="main-workspace">
+        <main className="workspace" data-testid="main-workspace" style={{ position: 'relative' }}>
           {loading && (
             <div className="loading-overlay" data-testid="loading-indicator">
               <div className="spinner"></div>
@@ -239,20 +256,52 @@ function App() {
             />
           ) : graphData.nodes.length > 0 ? (
             <>
-              <TextResponsePanel
-                graphData={graphData}
-                selectedNode={externalSelectedNode}
-                onNodeClick={handleTextNodeClick}
-                onExpandConcept={handleExpandConcept}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-              />
-              <GraphCanvas
+              <AnimatePresence>
+                {showChat && (
+                  <motion.div
+                    className="chat-overlay-container"
+                    initial={{ x: "100%", opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: "100%", opacity: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                  >
+                    <div className="chat-panel-header">
+                      <h3>Explanation</h3>
+                      <button className="chat-close-btn" onClick={() => setShowChat(false)}>
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <TextResponsePanel
+                      graphData={graphData}
+                      selectedNode={externalSelectedNode}
+                      onNodeClick={handleTextNodeClick}
+                      onExpandConcept={handleExpandConcept}
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <VisualJourney
                 graphData={graphData}
                 onNodeClick={handleNodeClick}
-                selectedNode={selectedNode}
-                externalSelectedNode={externalSelectedNode}
               />
+
+              {mode === "query" && (
+                <motion.button
+                  className={`floating-chat-btn ${hasNewResponse ? 'glow' : ''}`}
+                  onClick={() => {
+                    setShowChat(!showChat);
+                    setHasNewResponse(false);
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <MessageSquare size={24} />
+                  {hasNewResponse && <span className="notification-dot" />}
+                </motion.button>
+              )}
             </>
           ) : (
             <div className="empty-state">

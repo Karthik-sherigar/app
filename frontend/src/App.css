@@ -74,6 +74,7 @@ h4 {
   background: linear-gradient(135deg, #6366f1, #22c55e);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .navbar-center {
@@ -510,7 +511,8 @@ h4 {
 .workspace {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.1), transparent 50%);
 }
 
@@ -1008,4 +1010,133 @@ h4 {
   .sidebar.open {
     left: 0;
   }
+}
+
+/* FLOATING CHAT EXPERIENCE */
+.floating-chat-btn {
+  position: fixed;
+  bottom: 100px;
+  /* Above BottomInputBar */
+  right: 32px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  cursor: pointer;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.floating-chat-btn:hover {
+  transform: scale(1.1) translateY(-4px);
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.6);
+}
+
+.floating-chat-btn.glow {
+  animation: chat-glow 2s infinite;
+}
+
+@keyframes chat-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 15px rgba(99, 102, 241, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+.notification-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: #ef4444;
+  border: 2px solid #0b1220;
+  border-radius: 50%;
+}
+
+.chat-overlay-container {
+  position: fixed;
+  top: 84px;
+  /* Below Navbar */
+  right: 32px;
+  bottom: 120px;
+  /* Above Input Bar */
+  width: 480px;
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  z-index: 2000;
+  box-shadow: -10px 10px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.chat-panel-header {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chat-panel-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.chat-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.chat-close-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* Ensure TextResponsePanel takes remaining height in overlay */
+.chat-overlay-container .text-response-panel {
+  flex: 1;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  overflow-y: auto;
+}
+
+/* Hide the internal header since we have a custom one */
+.chat-overlay-container .text-response-panel .panel-header {
+  display: none;
 }

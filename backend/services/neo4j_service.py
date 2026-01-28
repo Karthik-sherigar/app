@@ -59,7 +59,8 @@ class Neo4jService:
         SET n.label = node.label,
             n.type = node.type,
             n.description = node.description,
-            n.importance = node.importance
+            n.importance = node.importance,
+            n.depth = node.depth
         """
         
         try:
@@ -118,14 +119,14 @@ class Neo4jService:
                     m = record["m"]
                     r = record["r"]
                     
-                    # Deduplicate nodes
                     if n["id"] not in nodes:
                         nodes[n["id"]] = {
                             "id": n["id"],
                             "label": n.get("label"),
                             "type": n.get("type"),
                             "description": n.get("description"),
-                            "importance": n.get("importance")
+                            "importance": n.get("importance"),
+                            "depth": n.get("depth", 0)
                         }
                     
                     if m["id"] not in nodes:
@@ -134,7 +135,8 @@ class Neo4jService:
                             "label": m.get("label"),
                             "type": m.get("type"),
                             "description": m.get("description"),
-                            "importance": m.get("importance")
+                            "importance": m.get("importance"),
+                            "depth": m.get("depth", 0)
                         }
 
                     edges.append({
@@ -177,7 +179,8 @@ class Neo4jService:
                             "label": n.get("label"),
                             "type": n.get("type"),
                             "description": n.get("description"),
-                            "importance": n.get("importance")
+                            "importance": n.get("importance"),
+                            "depth": n.get("depth", 0)
                         }
                     
                     m = record["m"]
@@ -187,7 +190,8 @@ class Neo4jService:
                             "label": m.get("label"),
                             "type": m.get("type"),
                             "description": m.get("description"),
-                            "importance": m.get("importance")
+                            "importance": m.get("importance"),
+                            "depth": m.get("depth", 0)
                         }
 
                     r = record["r"]

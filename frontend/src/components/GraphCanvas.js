@@ -1,15 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
 import cytoscapeDagre from "cytoscape-dagre";
-import cytoscape_popper from "cytoscape-popper";
-import tippy from "tippy.js";
-import "tippy.js/dist/tippy.css";
 import "./GraphCanvas.css";
 import { Brain } from "lucide-react";
 
 // Register plugins
 cytoscape.use(cytoscapeDagre);
-cytoscape.use(cytoscape_popper);
 
 export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode }) {
   const cyRef = useRef(null);
@@ -140,47 +136,43 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
     cy.add(elements);
 
-    // Hover Tooltip System
+    // Hover Tooltip System - Simplified
     cy.on('mouseover', 'node', (evt) => {
       const node = evt.target;
       const description = node.data('description') || 'No description available';
 
-      const popperInstance = node.popper({
-        content: () => {
-          const div = document.createElement('div');
-          div.className = 'knowledge-tooltip';
-          div.innerHTML = `
-            <h4>${node.data('label')}</h4>
-            <p>${description}</p>
-            <span class="tooltip-hint">Click to explore</span>
-          `;
-          document.body.appendChild(div);
-          return div;
-        },
-        popper: {
-          placement: 'auto',
-          modifiers: [
-            {
-              name: 'preventOverflow',
-              options: {
-                boundary: 'viewport'
-              }
-            }
-          ]
-        }
-      });
+      // Create tooltip element
+      const tooltip = document.createElement('div');
+      tooltip.className = 'knowledge-tooltip';
+      tooltip.innerHTML = `
+        <h4>${node.data('label')}</h4>
+        <p>${description}</p>
+        <span class="tooltip-hint">Click to explore</span>
+      `;
+      tooltip.style.position = 'fixed';
+      tooltip.style.zIndex = '10000';
+      tooltip.style.pointerEvents = 'none';
+      document.body.appendChild(tooltip);
 
-      const tip = tippy(popperInstance.popper, {
-        trigger: 'manual',
-        arrow: true,
-        placement: 'auto',
-        theme: 'knowledge-map',
-        getReferenceClientRect: popperInstance.state.elements.reference.getBoundingClientRect
-      });
+      // Position tooltip near node
+      const updatePosition = () => {
+        if (!node || node.removed()) return;
+        const renderedPosition = node.renderedPosition();
+        const zoom = cy.zoom();
+        const pan = cy.pan();
 
-      tip.show();
-      node.data('tippy', tip);
-      node.data('popperInstance', popperInstance);
+        tooltip.style.left = `${renderedPosition.x + 20}px`;
+        tooltip.style.top = `${renderedPosition.y - 10}px`;
+      };
+
+      updatePosition();
+
+      // Store tooltip reference
+      node.data('tooltip', tooltip);
+      node.data('tooltipUpdate', updatePosition);
+
+      // Update position on pan/zoom
+      cy.on('pan zoom', updatePosition);
 
       // Hover visual feedback
       node.style({
@@ -194,17 +186,17 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
     cy.on('mouseout', 'node', (evt) => {
       const node = evt.target;
-      const tip = node.data('tippy');
-      const popperInstance = node.data('popperInstance');
+      const tooltip = node.data('tooltip');
+      const tooltipUpdate = node.data('tooltipUpdate');
 
-      if (tip) {
-        tip.destroy();
-        node.removeData('tippy');
+      if (tooltip) {
+        tooltip.remove();
+        node.removeData('tooltip');
       }
 
-      if (popperInstance && popperInstance.state && popperInstance.state.elements.popper) {
-        popperInstance.state.elements.popper.remove();
-        node.removeData('popperInstance');
+      if (tooltipUpdate) {
+        cy.off('pan zoom', tooltipUpdate);
+        node.removeData('tooltipUpdate');
       }
 
       // Reset border width
