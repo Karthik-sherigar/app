@@ -43,7 +43,7 @@ class Node(BaseModel):
     label: str
     type: str
     description: Optional[str] = None
-    importance: Optional[int] = 1
+    importance: Optional[str] = "medium"  # "high", "medium", or "low"
 
 class Edge(BaseModel):
     source: str
@@ -313,7 +313,11 @@ def validate_and_normalize_graph(graph_data):
         if "id" in node and "label" in node and "type" in node:
             # Normalize
             node["id"] = str(node["id"])
-            node["importance"] = int(node.get("importance", 1))
+            # Ensure importance is valid string
+            if "importance" in node and node["importance"] not in ["high", "medium", "low"]:
+                node["importance"] = "medium"
+            elif "importance" not in node:
+                node["importance"] = "medium"
             valid_nodes.append(node)
             node_ids.add(node["id"])
     graph["nodes"] = valid_nodes
@@ -359,8 +363,8 @@ Return ONLY valid JSON in this exact format:
   }},
   "graph": {{
     "nodes": [
-      {{"id": "1", "label": "Main Concept", "type": "Concept", "description": "Brief description", "importance": 3, "depth": 0}},
-      {{"id": "2", "label": "Related Concept", "type": "Prerequisite", "description": "What's needed first", "importance": 2, "depth": 1}}
+      {{"id": "1", "label": "Main Concept", "type": "Concept", "description": "Brief description", "importance": "high", "depth": 0}},
+      {{"id": "2", "label": "Related Concept", "type": "Prerequisite", "description": "What's needed first", "importance": "medium", "depth": 1}}
     ],
     "edges": [
       {{"source": "1", "target": "2", "relation": "DEPENDS_ON"}}
@@ -370,7 +374,7 @@ Return ONLY valid JSON in this exact format:
 
 Types: Concept, Prerequisite, Application, Component
 Relations: EXPLAINS, DEPENDS_ON, RELATED_TO, LEADS_TO
-Importance: 1-3
+Importance: "high", "medium", or "low" (string values)
 Depth: 0=core concept
 Create 15-25 nodes. Return ONLY valid JSON."""
         
