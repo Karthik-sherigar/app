@@ -1,0 +1,41 @@
+.knowledge-tooltip {
+    background: rgba(17, 24, 39, 0.98);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 12px;
+    padding: 12px 16px;
+    max-width: 250px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(20px);
+    pointer-events: none;
+    /* Critical: prevents tooltip blocking clicks */
+}
+
+.knowledge-tooltip h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f9fafb;
+    margin: 0 0 8px 0;
+}
+
+.knowledge-tooltip p {
+    font-size: 12px;
+    color: #9ca3af;
+    margin: 0 0 8px 0;
+    line-height: 1.5;
+}
+
+.tooltip-hint {
+    font-size: 10px;
+    color: #6366f1;
+    font-style: italic;
+}
+
+/* Tippy.js theme */
+.tippy-box[data-theme~='knowledge-map'] {
+    background-color: transparent;
+    border: none;
+}
+
+.tippy-box[data-theme~='knowledge-map'] .tippy-arrow {
+    color: rgba(99, 102, 241, 0.3);
+}
