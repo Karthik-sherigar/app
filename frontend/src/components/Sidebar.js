@@ -172,24 +172,26 @@ export default function Sidebar({
           <span>RECENT HISTORY</span>
         </h3>
         <div className="history-list" data-testid="history-list">
-          {history.map((item) => (
-            <div
-              key={item.id}
-              className="history-item"
-              onClick={() => restoreFromHistory(item)}
-              data-testid={`history-item-${item.id}`}
-            >
-              <div className="history-preview">{item.preview}</div>
-              <div className="history-meta">
-                <span className="history-mode">{item.mode}</span>
-                <span className="history-time">
-                  {new Date(item.timestamp).toLocaleTimeString()}
-                </span>
+          {history
+            .filter(item => item.mode === mode)
+            .map((item) => (
+              <div
+                key={item.id}
+                className="history-item"
+                onClick={() => restoreFromHistory(item)}
+                data-testid={`history-item-${item.id}`}
+              >
+                <div className="history-preview">{item.preview}</div>
+                <div className="history-meta">
+                  <span className="history-mode">{item.mode}</span>
+                  <span className="history-time">
+                    {new Date(item.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-          {history.length === 0 && (
-            <p className="empty-state">No history yet</p>
+            ))}
+          {history.filter(item => item.mode === mode).length === 0 && (
+            <p className="empty-state">No history for this mode yet</p>
           )}
         </div>
       </div>

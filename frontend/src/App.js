@@ -40,6 +40,16 @@ function App() {
     fetchHistory();
   }, []);
 
+  // Mode Isolation: Reset graph when switching modes
+  useEffect(() => {
+    setGraphData({ nodes: [], edges: [] });
+    setSelectedNode(null);
+    setShowNodePanel(false);
+    setShowExplanation(false);
+    setShowChat(false);
+    setHasNewResponse(false);
+  }, [mode]);
+
   const checkBackendHealth = async () => {
     try {
       await axios.get(`${API}/health`);
@@ -257,7 +267,7 @@ function App() {
           ) : graphData.nodes.length > 0 ? (
             <>
               <AnimatePresence>
-                {showChat && (
+                {mode === 'query' && showChat && (
                   <motion.div
                     className="chat-overlay-container"
                     initial={{ x: "100%", opacity: 0 }}
@@ -283,10 +293,18 @@ function App() {
                 )}
               </AnimatePresence>
 
-              <VisualJourney
-                graphData={graphData}
-                onNodeClick={handleNodeClick}
-              />
+              {mode === 'query' ? (
+                <VisualJourney
+                  graphData={graphData}
+                  onNodeClick={handleNodeClick}
+                />
+              ) : (
+                <GraphCanvas
+                  graphData={graphData}
+                  onNodeClick={handleNodeClick}
+                  selectedNode={externalSelectedNode}
+                />
+              )}
 
               {mode === "query" && (
                 <motion.button
