@@ -9,6 +9,7 @@ import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
 import ProgrammingView from "./components/ProgrammingView";
+import BottomInputBar from "./components/BottomInputBar";
 import { Toaster, toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -262,6 +263,17 @@ function App() {
           )}
         </main>
 
+        {/* Bottom Input Bar - Query Mode Only */}
+        {
+          mode === "query" && (
+            <BottomInputBar
+              onSubmit={(query) => generateGraph(query, "query")}
+              loading={loading}
+              disabled={backendStatus !== "connected"}
+            />
+          )
+        }
+
         <AnimatePresence>
           {showNodePanel && selectedNode && (
             <NodeDetailsPanel
@@ -282,10 +294,10 @@ function App() {
             />
           )}
         </AnimatePresence>
-      </div>
+      </div >
 
       <Toaster position="bottom-right" />
-    </div>
+    </div >
   );
 }
 
