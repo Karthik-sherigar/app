@@ -1,15 +1,19 @@
 import React, { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
-import dagre from "cytoscape-dagre";
+import cytoscapeDagre from "cytoscape-dagre";
+import cytoscape_popper from "cytoscape-popper";
+import tippy from "tippy.js";
+import "tippy.js/dist/tippy.css";
+import "./GraphCanvas.css";
+import { Brain } from "lucide-react";
 
-if (typeof cytoscape('core', 'dagre') !== 'function') {
-  cytoscape.use(dagre);
-}
+// Register plugins
+cytoscape.use(cytoscapeDagre);
+cytoscape.use(cytoscape_popper);
 
 export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode }) {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
-
   const layoutRef = useRef(null);
 
   // Init and Update in a single effect to handle Strict Mode correctness
@@ -26,45 +30,84 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
             'label': 'data(label)',
             'text-valign': 'center',
             'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '120px',
             'font-size': '12px',
             'color': '#f9fafb',
             'text-outline-color': '#0b1220',
             'text-outline-width': 2,
-            'width': (ele) => 40 + (ele.data('importance') || 1) * 10,
-            'height': (ele) => 40 + (ele.data('importance') || 1) * 10,
+            'shape': 'round-rectangle',
+            'background-color': 'rgba(17, 24, 39, 0.9)',
+            'padding': '10px',
+            'width': (ele) => {
+              const importance = ele.data('importance');
+              return importance === 'high' ? 180 : importance === 'medium' ? 150 : 120;
+            },
+            'height': 'label',
+            'border-width': (ele) => {
+              const importance = ele.data('importance');
+              return importance === 'high' ? 4 : importance === 'medium' ? 3 : 2;
+            },
+            'border-color': '#6366f1',
+            'border-opacity': 0.5
           }
         },
-        { selector: 'node[type="Concept"]', style: { 'background-color': '#3b82f6', 'shape': 'ellipse' } },
-        { selector: 'node[type="Prerequisite"]', style: { 'background-color': '#f59e0b', 'shape': 'ellipse' } },
-        { selector: 'node[type="CodeBlock"], node[type="LogicPhase"]', style: { 'background-color': '#10b981', 'shape': 'round-rectangle' } },
-        { selector: 'node[type="Decision"]', style: { 'background-color': '#f43f5e', 'shape': 'diamond', 'width': 60, 'height': 60 } },
-        { selector: 'node[type="DocumentSection"]', style: { 'background-color': '#a855f7', 'shape': 'round-rectangle' } },
-        { selector: 'node[type="Component"], node[type="Application"], node[type="DataStore"]', style: { 'background-color': '#06b6d4', 'shape': 'hexagon' } },
+        { selector: 'node[type="Concept"]', style: { 'border-color': '#3b82f6' } },
+        { selector: 'node[type="Prerequisite"]', style: { 'border-color': '#f59e0b' } },
+        { selector: 'node[type="CodeBlock"]', style: { 'border-color': '#22c55e' } },
+        { selector: 'node[type="DocumentSection"]', style: { 'border-color': '#a855f7' } },
+        { selector: 'node[type="Component"], node[type="Application"]', style: { 'border-color': '#06b6d4' } },
         {
           selector: 'node:selected',
           style: {
-            'border-width': 4,
+            'border-width': 5,
             'border-color': '#6366f1',
             'box-shadow': '0 0 20px #6366f1'
           }
         },
         {
+          selector: 'node.focused',
+          style: {
+            'border-width': 5,
+            'border-color': '#6366f1',
+            'box-shadow': '0 0 30px #6366f1'
+          }
+        },
+        {
+          selector: 'node.faded',
+          style: {
+            'opacity': 0.2
+          }
+        },
+        {
           selector: 'edge',
           style: {
-            'width': 3,
+            'width': 2,
             'line-color': '#4b5563',
             'target-arrow-color': '#4b5563',
             'target-arrow-shape': 'triangle',
-            'curve-style': 'bezier',
+            'arrow-scale': 1.2,
+            'curve-style': 'unbundled-bezier',
+            'opacity': 0.6,
             'label': 'data(label)',
             'font-size': '10px',
             'color': '#9ca3af',
+            'text-background-color': '#1f2937',
+            'text-background-opacity': 1,
+            'text-background-padding': '4px',
+            'text-border-radius': '8px',
+            'text-border-width': 1,
+            'text-border-color': '#374151',
             'text-outline-color': '#0b1220',
-            'text-outline-width': 1,
-            'arrow-scale': 1.5
+            'text-outline-width': 1
           }
         },
-        { selector: 'edge[label="FLOWS_TO"]', style: { 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'width': 4 } },
+        {
+          selector: 'edge.faded',
+          style: {
+            'opacity': 0.1
+          }
+        },
         { selector: 'edge[label="DEPENDS_ON"]', style: { 'line-style': 'dashed' } },
         { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } }
       ],
@@ -97,63 +140,138 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
     cy.add(elements);
 
-    // Bind Events
-    cy.on('tap', 'node', (evt) => {
-      const node = evt.target.data();
-      onNodeClick(node);
-    });
-
+    // Hover Tooltip System
     cy.on('mouseover', 'node', (evt) => {
       const node = evt.target;
-      node.style('background-color', '#6366f1');
+      const description = node.data('description') || 'No description available';
+
+      const popperInstance = node.popper({
+        content: () => {
+          const div = document.createElement('div');
+          div.className = 'knowledge-tooltip';
+          div.innerHTML = `
+            <h4>${node.data('label')}</h4>
+            <p>${description}</p>
+            <span class="tooltip-hint">Click to explore</span>
+          `;
+          document.body.appendChild(div);
+          return div;
+        },
+        popper: {
+          placement: 'auto',
+          modifiers: [
+            {
+              name: 'preventOverflow',
+              options: {
+                boundary: 'viewport'
+              }
+            }
+          ]
+        }
+      });
+
+      const tip = tippy(popperInstance.popper, {
+        trigger: 'manual',
+        arrow: true,
+        placement: 'auto',
+        theme: 'knowledge-map',
+        getReferenceClientRect: popperInstance.state.elements.reference.getBoundingClientRect
+      });
+
+      tip.show();
+      node.data('tippy', tip);
+      node.data('popperInstance', popperInstance);
+
+      // Hover visual feedback
+      node.style({
+        'border-width': (ele) => {
+          const importance = ele.data('importance');
+          const base = importance === 'high' ? 4 : importance === 'medium' ? 3 : 2;
+          return base + 2;
+        }
+      });
     });
 
     cy.on('mouseout', 'node', (evt) => {
       const node = evt.target;
-      const type = node.data('type');
-      const colors = {
-        'Concept': '#3b82f6',
-        'Prerequisite': '#f59e0b',
-        'CodeBlock': '#22c55e',
-        'DocumentSection': '#a855f7',
-        'Component': '#06b6d4',
-        'Application': '#06b6d4'
-      };
-      node.style('background-color', colors[type] || '#3b82f6');
+      const tip = node.data('tippy');
+      const popperInstance = node.data('popperInstance');
+
+      if (tip) {
+        tip.destroy();
+        node.removeData('tippy');
+      }
+
+      if (popperInstance && popperInstance.state && popperInstance.state.elements.popper) {
+        popperInstance.state.elements.popper.remove();
+        node.removeData('popperInstance');
+      }
+
+      // Reset border width
+      node.style({
+        'border-width': (ele) => {
+          const importance = ele.data('importance');
+          return importance === 'high' ? 4 : importance === 'medium' ? 3 : 2;
+        }
+      });
+    });
+
+    // Cleanup tooltips on node removal (prevent memory leak)
+    cy.on('remove', 'node', (evt) => {
+      const tip = evt.target.data('tippy');
+      if (tip) tip.destroy();
+    });
+
+    // Focus Exploration Mode
+    cy.on('tap', 'node', (evt) => {
+      const clickedNode = evt.target;
+
+      // Center on clicked node
+      cy.animate({
+        center: { eles: clickedNode },
+        zoom: 1.5
+      }, {
+        duration: 500
+      });
+
+      // Highlight clicked node
+      cy.nodes().removeClass('focused');
+      clickedNode.addClass('focused');
+
+      // Fade unrelated nodes
+      const connectedNodes = clickedNode.neighborhood().add(clickedNode);
+      cy.nodes().not(connectedNodes).addClass('faded');
+      cy.edges().not(clickedNode.connectedEdges()).addClass('faded');
+
+      // Call original handler
+      onNodeClick(clickedNode.data());
+    });
+
+    // Background click to reset focus mode
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        cy.nodes().removeClass('faded focused');
+        cy.edges().removeClass('faded');
+        cy.animate({ zoom: 1, center: undefined }, { duration: 300 });
+      }
     });
 
     // Run Layout in RAF to avoid race conditions with cleanup
     const runLayout = requestAnimationFrame(() => {
       if (!cy || cy.destroyed()) return;
 
-      const isProgramming = graphData.nodes.some(n => n.type === 'Decision' || n.type === 'LogicPhase');
+      // Performance guard: disable animation for large graphs
+      const shouldAnimate = cy.nodes().length < 80;
 
-      layoutRef.current = cy.layout(isProgramming ? {
+      layoutRef.current = cy.layout({
         name: 'dagre',
-        rankDir: 'TB',
-        nodeSep: 60,
-        edgeSep: 40,
-        rankSep: 80,
-        padding: 50,
-        animate: true,
-        animationDuration: 500
-      } : {
-        name: 'cose',
-        idealEdgeLength: 100,
-        nodeOverlap: 20,
-        refresh: 20,
+        rankDir: 'LR', // Left to Right flow
+        nodeSep: 80,
+        rankSep: 150,
+        padding: 40,
         fit: true,
-        padding: 30,
-        randomize: false,
-        componentSpacing: 100,
-        nodeRepulsion: 400000,
-        edgeElasticity: 100,
-        nestingFactor: 5,
-        gravity: 80,
-        numIter: 1000,
-        initialTemp: 200,
-        coolingFactor: 0.95,
-        minTemp: 1.0
+        animate: shouldAnimate,
+        animationDuration: 500
       });
       layoutRef.current.run();
     });
@@ -161,6 +279,14 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
     // Cleanup
     return () => {
       cancelAnimationFrame(runLayout);
+
+      // Destroy all tooltips
+      if (cy && !cy.destroyed()) {
+        cy.nodes().forEach(node => {
+          const tip = node.data('tippy');
+          if (tip) tip.destroy();
+        });
+      }
 
       if (layoutRef.current) {
         try { layoutRef.current.stop(); } catch (e) { }
@@ -189,34 +315,11 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
     if (!cyInstance.current || cyInstance.current.destroyed()) return;
 
     const cy = cyInstance.current;
-    cy.removeAllListeners();
-
-    cy.on('tap', 'node', (evt) => {
-      const node = evt.target.data();
-      onNodeClick(node);
-    });
-
-    cy.on('mouseover', 'node', (evt) => {
-      const node = evt.target;
-      node.style('background-color', '#6366f1');
-    });
-
-    cy.on('mouseout', 'node', (evt) => {
-      const node = evt.target;
-      const type = node.data('type');
-      const colors = {
-        'Concept': '#3b82f6',
-        'Prerequisite': '#f59e0b',
-        'CodeBlock': '#22c55e',
-        'DocumentSection': '#a855f7',
-        'Component': '#06b6d4',
-        'Application': '#06b6d4'
-      };
-      node.style('background-color', colors[type] || '#3b82f6');
-    });
+    // Events are now bound in the main effect above
 
   }, [onNodeClick]);
 
+  // Handle selected node
   useEffect(() => {
     if (!cyInstance.current || cyInstance.current.destroyed()) return;
 
@@ -256,14 +359,14 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         });
 
         // Flash highlight effect
-        const originalColor = node.style('background-color');
-        node.style('background-color', '#6366f1');
+        const originalBorderColor = node.style('border-color');
+        node.style('border-color', '#6366f1');
 
         setTimeout(() => {
           if (cyInstance.current && !cyInstance.current.destroyed()) {
             const currentNode = cyInstance.current.getElementById(externalSelectedNode);
             if (currentNode && currentNode.length > 0) {
-              currentNode.style('background-color', originalColor);
+              currentNode.style('border-color', originalBorderColor);
             }
           }
         }, 800);
@@ -285,6 +388,3 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
     </div>
   );
 }
-
-// Import Brain icon
-import { Brain } from "lucide-react";
