@@ -1,0 +1,139 @@
+.bottom-input-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 1.5rem;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.bottom-input-bar .input-container {
+    max-width: 900px;
+    width: 100%;
+    background: rgba(17, 24, 39, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    pointer-events: all;
+    transition: all 0.3s ease;
+}
+
+.bottom-input-bar .input-container:focus-within {
+    background: rgba(17, 24, 39, 0.98);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3),
+        0 0 0 1px rgba(99, 102, 241, 0.2) inset;
+}
+
+.bottom-input-bar .query-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    resize: none;
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: inherit;
+    padding: 0.25rem 0;
+    width: 100%;
+}
+
+.bottom-input-bar .query-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.bottom-input-bar .query-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.bottom-input-bar .button-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.bottom-input-bar .btn-clear,
+.bottom-input-bar .btn-submit {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.bottom-input-bar .btn-clear {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.bottom-input-bar .btn-clear:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.bottom-input-bar .btn-submit {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+
+.bottom-input-bar .btn-submit:hover:not(.disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.bottom-input-bar .btn-submit.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.bottom-input-bar .spinner-small {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Scrollbar styling for textarea */
+.bottom-input-bar .query-input::-webkit-scrollbar {
+    width: 4px;
+}
+
+.bottom-input-bar .query-input::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.bottom-input-bar .query-input::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.bottom-input-bar .query-input::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
