@@ -7,7 +7,7 @@ import { Brain } from "lucide-react";
 // Register plugins
 cytoscape.use(cytoscapeDagre);
 
-export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode }) {
+export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode, mode }) {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
   const layoutRef = useRef(null);
@@ -52,7 +52,10 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         { selector: 'node[type="Prerequisite"]', style: { 'border-color': '#f59e0b' } },
         { selector: 'node[type="CodeBlock"]', style: { 'border-color': '#22c55e' } },
         { selector: 'node[type="DocumentSection"]', style: { 'border-color': '#a855f7' } },
-        { selector: 'node[type="Component"], node[type="Application"]', style: { 'border-color': '#06b6d4' } },
+        { selector: 'node[type="Component"], node[type="Application"]', style: { 'border-color': '#06b6d4', 'shape': 'hexagon' } },
+        { selector: 'node[type="Decision"]', style: { 'border-color': '#ef4444', 'shape': 'diamond', 'background-color': 'rgba(239, 68, 68, 0.1)' } },
+        { selector: 'node[type="LogicPhase"]', style: { 'border-color': '#22c55e', 'shape': 'round-rectangle', 'border-width': 3 } },
+        { selector: 'node[type="DataStore"]', style: { 'border-color': '#f59e0b', 'shape': 'barrel' } },
         {
           selector: 'node:selected',
           style: {
@@ -105,7 +108,9 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
           }
         },
         { selector: 'edge[label="DEPENDS_ON"]', style: { 'line-style': 'dashed' } },
-        { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } }
+        { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } },
+        { selector: 'edge[label="FLOWS_TO"]', style: { 'width': 3, 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'arrow-scale': 1.5 } },
+        { selector: 'edge[label="CALLS"]', style: { 'line-style': 'dashed', 'line-color': '#10b981', 'target-arrow-color': '#10b981' } }
       ],
       minZoom: 0.3,
       maxZoom: 3,
@@ -255,16 +260,28 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
       // Performance guard: disable animation for large graphs
       const shouldAnimate = cy.nodes().length < 80;
 
-      layoutRef.current = cy.layout({
+      const layoutOptions = mode === 'programming' ? {
         name: 'dagre',
-        rankDir: 'LR', // Left to Right flow
+        rankDir: 'LR',
         nodeSep: 80,
         rankSep: 150,
         padding: 40,
         fit: true,
         animate: shouldAnimate,
         animationDuration: 500
-      });
+      } : {
+        name: 'cose',
+        randomize: false,
+        animate: shouldAnimate,
+        animationDuration: 1000,
+        padding: 50,
+        nodeOverlap: 20,
+        componentSpacing: 100,
+        refresh: 20,
+        fit: true
+      };
+
+      layoutRef.current = cy.layout(layoutOptions);
       layoutRef.current.run();
     });
 
