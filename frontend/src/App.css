@@ -208,14 +208,16 @@ h4 {
   width: 68px;
 }
 
-.sidebar.query-mode-autohide {
+.sidebar.query-mode-autohide,
+.sidebar.programming-mode-autohide {
   width: 68px;
   opacity: 0.8;
   position: relative;
   z-index: 1000;
 }
 
-.sidebar.query-mode-autohide:hover {
+.sidebar.query-mode-autohide:hover,
+.sidebar.programming-mode-autohide:hover {
   width: 320px;
   opacity: 1;
   box-shadow: 10px 0 40px rgba(0, 0, 0, 0.5);
@@ -225,15 +227,23 @@ h4 {
 .sidebar.query-mode-autohide:not(:hover) .section-title span,
 .sidebar.query-mode-autohide:not(:hover) .btn-action span,
 .sidebar.query-mode-autohide:not(:hover) .history-preview-classic,
-.sidebar.query-mode-autohide:not(:hover) .history-meta {
+.sidebar.query-mode-autohide:not(:hover) .history-meta,
+.sidebar.query-mode-autohide:not(:hover) .input-container,
+.sidebar.programming-mode-autohide:not(:hover) .section-title span,
+.sidebar.programming-mode-autohide:not(:hover) .btn-action span,
+.sidebar.programming-mode-autohide:not(:hover) .history-preview-classic,
+.sidebar.programming-mode-autohide:not(:hover) .history-meta,
+.sidebar.programming-mode-autohide:not(:hover) .input-container {
   display: none;
 }
 
-.sidebar.query-mode-autohide:not(:hover) .sidebar-section {
+.sidebar.query-mode-autohide:not(:hover) .sidebar-section,
+.sidebar.programming-mode-autohide:not(:hover) .sidebar-section {
   align-items: center;
 }
 
-.sidebar.query-mode-autohide:not(:hover) .sidebar-content {
+.sidebar.query-mode-autohide:not(:hover) .sidebar-content,
+.sidebar.programming-mode-autohide:not(:hover) .sidebar-content {
   padding: 16px 8px;
 }
 
@@ -1311,46 +1321,46 @@ h4 {
   border-radius: 1px;
 }
 
-/* Explanation Overlay (Programming Mode) */
-.explanation-overlay {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  width: 380px;
-  max-height: 400px;
-  background: rgba(17, 24, 39, 0.9);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  z-index: 20;
+/* Logic Summary Panel (Programming Mode - Below Graph) */
+.logic-summary-panel {
+  height: 100%;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-top: 2px solid var(--accent-primary);
 }
 
-.explanation-overlay.collapsed {
-  width: 220px;
-}
-
-.overlay-header {
-  padding: 16px 20px;
+.logic-summary-panel .panel-header {
+  height: 40px;
+  background: rgba(255, 255, 255, 0.03);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 16px;
   cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.overlay-header:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.overlay-body {
-  padding: 0 20px 20px 20px;
-  font-size: 14px;
-  line-height: 1.7;
+.logic-summary-panel .panel-header span {
+  font-size: 11px;
+  font-weight: 800;
   color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.logic-summary-panel .panel-body {
+  flex: 1;
+  padding: 16px;
   overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #e2e8f0;
+}
+
+.summary-content {
+  max-width: 800px;
+  margin: 0 auto;
+  opacity: 0.9;
 }
 
 /* Fullscreen Modal */
