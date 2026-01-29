@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import {
     Play,
+    PlayCircle,
     FileCode,
     Trash2,
     Maximize2,
@@ -10,8 +11,12 @@ import {
     Info,
     X,
     ChevronUp,
-    ChevronDown
+    ChevronDown,
+    Terminal as TerminalIcon,
+    AlertCircle
 } from "lucide-react";
+import axios from "axios";
+import { Toaster, toast } from "sonner";
 import GraphCanvas from "./GraphCanvas";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,7 +34,35 @@ export default function ProgrammingView({
     const [language, setLanguage] = useState("javascript");
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showExplanation, setShowExplanation] = useState(true);
+    const [executionResult, setExecutionResult] = useState(null);
+    const [isExecuting, setIsExecuting] = useState(false);
+    const [showTerminal, setShowTerminal] = useState(false);
     const fileInputRef = useRef(null);
+
+    const runCode = async () => {
+        if (!code.trim()) return;
+        setIsExecuting(true);
+        setShowTerminal(true);
+        setExecutionResult(null);
+        try {
+            const apiBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+            const response = await axios.post(`${apiBase}/api/execute-code`, {
+                code,
+                language
+            });
+            setExecutionResult(response.data);
+            if (response.data.success) {
+                toast.success("Execution complete");
+            } else {
+                toast.error("Execution failed");
+            }
+        } catch (e) {
+            toast.error("Failed to run code");
+            setExecutionResult({ output: "", error: e.message, success: false });
+        } finally {
+            setIsExecuting(false);
+        }
+    };
 
     const handleFileOpen = (event) => {
         const file = event.target.files[0];
@@ -87,23 +120,75 @@ export default function ProgrammingView({
                             </div>
                         </div>
                         <div className="editor-main">
-                            <Editor
-                                height="100%"
-                                language={language}
-                                theme="vs-dark"
-                                value={code}
-                                onChange={(val) => setCode(val || "")}
-                                options={{
-                                    minimap: { enabled: true },
-                                    fontSize: 14,
-                                    lineNumbers: "on",
-                                    roundedSelection: false,
-                                    scrollBeyondLastLine: false,
-                                    readOnly: false,
-                                    automaticLayout: true,
-                                    padding: { top: 10 }
-                                }}
-                            />
+                            <PanelGroup direction="vertical">
+                                <Panel minSize={20}>
+                                    <Editor
+                                        height="100%"
+                                        language={language}
+                                        theme="vs-dark"
+                                        value={code}
+                                        onChange={(val) => setCode(val || "")}
+                                        options={{
+                                            minimap: { enabled: true },
+                                            fontSize: 14,
+                                            lineNumbers: "on",
+                                            roundedSelection: false,
+                                            scrollBeyondLastLine: false,
+                                            readOnly: false,
+                                            automaticLayout: true,
+                                            padding: { top: 10 }
+                                        }}
+                                    />
+                                </Panel>
+
+                                {showTerminal && (
+                                    <>
+                                        <PanelResizeHandle className="resize-handle-v">
+                                            <div className="handle-line-h" />
+                                        </PanelResizeHandle>
+                                        <Panel defaultSize={30} minSize={15}>
+                                            <div className="terminal-section">
+                                                <div className="terminal-header" onClick={() => setShowTerminal(false)}>
+                                                    <div className="header-left">
+                                                        <TerminalIcon size={14} className="text-accent" />
+                                                        <span>OUTPUT</span>
+                                                    </div>
+                                                    <button className="close-terminal">
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                                <div className="terminal-body">
+                                                    {isExecuting ? (
+                                                        <div className="terminal-loading">Running code...</div>
+                                                    ) : executionResult ? (
+                                                        <>
+                                                            {executionResult.output && <pre className="output-stdout">{executionResult.output}</pre>}
+                                                            {executionResult.error && <pre className="output-stderr">{executionResult.error}</pre>}
+                                                            {!executionResult.output && !executionResult.error && <div className="terminal-empty">No output</div>}
+                                                        </>
+                                                    ) : (
+                                                        <div className="terminal-empty">Ready to execute...</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </Panel>
+                                    </>
+                                )}
+                            </PanelGroup>
+                        </div>
+                        <div className="editor-footer">
+                            <button
+                                className={`run-btn ${isExecuting ? 'executing' : ''}`}
+                                onClick={runCode}
+                                disabled={isExecuting || !code.trim()}
+                            >
+                                {isExecuting ? (
+                                    <div className="run-spinner" />
+                                ) : (
+                                    <PlayCircle size={16} />
+                                )}
+                                Run Code
+                            </button>
                         </div>
                     </div>
                 </Panel>
@@ -147,6 +232,7 @@ export default function ProgrammingView({
                                         onNodeClick={onNodeClick}
                                         selectedNode={selectedNode}
                                         externalSelectedNode={externalSelectedNode}
+                                        mode="programming"
                                     />
 
                                     {/* AI Explanation Overlay */}
@@ -206,6 +292,7 @@ export default function ProgrammingView({
                                     onNodeClick={onNodeClick}
                                     selectedNode={selectedNode}
                                     externalSelectedNode={externalSelectedNode}
+                                    mode="programming"
                                 />
                             </div>
                         </div>
