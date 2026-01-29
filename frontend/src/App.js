@@ -331,7 +331,7 @@ function App() {
           )}
         </main>
 
-        {/* Bottom Input Bar - Query Mode Only */}
+        {/* Bottom Input Bar - Restored for Knowledge Road View */}
         {
           mode === "query" && (
             <BottomInputBar
