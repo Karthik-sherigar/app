@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
+import asyncio
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -149,7 +150,7 @@ def initialize_models():
     
     # Default fallback if not configured
     if not available_models:
-        available_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+        available_models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-002', 'gemini-1.5-pro-latest']
     
     logging.info(f"Loaded {len(available_models)} models for fallback: {available_models}")
 
@@ -179,11 +180,11 @@ initialize_providers()
 
 async def generate_with_groq(prompt):
     if not groq_client: return None
-    logging.info("Attempting generation with Groq (Llama 3)...")
+    logging.info("Attempting generation with Groq (Llama 3.3)...")
     try:
         completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             response_format={"type": "json_object"}
         )
         return completion.choices[0].message.content
@@ -195,20 +196,21 @@ async def generate_with_cohere(prompt):
     if not cohere_client: return None
     logging.info("Attempting generation with Cohere (Command R)...")
     try:
+        # Cohere 'chat' often doesn't like response_format in certain SDK versions. 
+        # We rely on the prompt to enforce JSON.
         response = cohere_client.chat(
             message=prompt,
-            model="command-r-plus",
-            response_format={"type": "json_object"}
+            model="command-r-plus"
         )
         return response.text
     except Exception as e:
         logging.error(f"Cohere generation failed: {e}")
         raise e
 
-async def _generate_with_gemini_internal(preferred_model, prompt):
+async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_index=None):
     """
     Generate content with dual-layer fallback:
-    1. Loop through API Keys (Round-Robin)
+    1. Loop through API Keys (Round-Robin or forced index)
     2. Loop through Available Models (if all keys fail for a model)
     """
     
@@ -218,16 +220,18 @@ async def _generate_with_gemini_internal(preferred_model, prompt):
     last_error = None
     
     for model in models_to_try:
-        logging.info(f"Attempting generation with model: {model}")
+        logging.info(f"Attempting generation with model: {model} (Forced Key: {forced_key_index})")
         
-        # Try all keys for this model
-        start_key_index = current_api_key_index
-        keys_exhausted_for_model = False
+        # Try all keys for this model (starting with forced index if provided)
+        start_index = forced_key_index if forced_key_index is not None else current_api_key_index
         
         for i in range(len(api_keys)):
+            # Calculate actual key to use
+            k_index = (start_index + i) % len(api_keys)
+            
             try:
-                # Get client with current key
-                client = get_gemini_client()
+                # Get client with specific key
+                client = get_gemini_client(key_index=k_index)
                 
                 response = client.models.generate_content(
                     model=model,
@@ -241,12 +245,11 @@ async def _generate_with_gemini_internal(preferred_model, prompt):
                 
                 # Check for quota/overload errors
                 if any(code in error_msg for code in ['503', '429', 'overloaded', 'quota', 'UNAVAILABLE', 'RESOURCE_EXHAUSTED']):
-                    logging.warning(f"Key {current_api_key_index + 1} failed on {model}: {error_msg}")
-                    
-                    # Rotate to next key
+                    logging.warning(f"Key {k_index + 1} hit quota on {model}. Retrying in 3s...")
+                    await asyncio.sleep(3) # Increased buffer
                     rotate_api_key()
                 else:
-                    logging.warning(f"Unexpected error with Key {current_api_key_index + 1} on {model}: {error_msg}")
+                    logging.warning(f"Unexpected error with Key {k_index + 1} on {model}: {error_msg}")
                     rotate_api_key()
         
         logging.warning(f"All keys exhausted for model {model}. Switching to next model...")
@@ -301,10 +304,20 @@ def validate_and_normalize_graph(graph_data):
     if not isinstance(graph_data, dict):
         graph_data = {}
     
-    if "graph" not in graph_data:
+    # If nodes/edges are at the top level, move them into a "graph" object
+    if "nodes" in graph_data and "edges" in graph_data and "graph" not in graph_data:
+        graph_data["graph"] = {
+            "nodes": graph_data.pop("nodes"),
+            "edges": graph_data.pop("edges")
+        }
+    elif "graph" not in graph_data:
         graph_data["graph"] = {"nodes": [], "edges": []}
     
     graph = graph_data["graph"]
+    if not isinstance(graph, dict):
+        graph = {"nodes": [], "edges": []}
+        graph_data["graph"] = graph
+        
     if "nodes" not in graph:
         graph["nodes"] = []
     if "edges" not in graph:
@@ -345,12 +358,13 @@ async def generate_graph(request: QueryRequest):
     try:
         
         if request.mode == "query":
-            prompt = f"""Create a comprehensive knowledge graph AND textual explanation for: "{request.query}"
-
+            # PREPARE PARALLEL TASKS
+            # Task 1: Graph Structure (Key 0)
+            graph_prompt = f"""Construct a high-fidelity "Knowledge Expedition" railroad through the concepts of: "{request.query}"
 Generate a structured JSON response with:
 1. A detailed textual explanation
-2. Nodes and edges representing key concepts
-3. Organized sections for different views
+2. A sequence of 10-15 "Technical Stations" (Nodes) that form a logical train path.
+3. Distinct relations (Edges) connecting these stations in a clear architectural timeline.
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -375,14 +389,87 @@ Return ONLY valid JSON in this exact format:
     ]
   }}
 }}
-
 Types: Concept, Prerequisite, Application, Component
-Relations: EXPLAINS, DEPENDS_ON, RELATED_TO, LEADS_TO
-Importance: "high", "medium", or "low" (string values)
-Depth: 0=core concept
-Create 15-25 nodes. Return ONLY valid JSON."""
+Focus on creating a clear, sequential path of discovery with 10-15 nodes. Return ONLY valid JSON."""
+
+            # Task 2: Visual Metadata / Imagery (Key 1)
+            # This runs SIMULTANEOUSLY using Key 2 to reduce latency
+            visual_prompt = f"""Generate a high-quality visual palette for a journey about: "{request.query}"
+Provide a list of 25 unique, abstract, and artistic keywords/short descriptions that would represent concepts in this field.
+Return ONLY a JSON array of strings: {{"visual_prompts": ["cybernetic neural network", "glowing neon circuits", "ethereal data flow", ...]}}"""
+            
+            # Execute both using different keys to avoid rate limits and speed up execution
+            logging.info("Starting Parallel Gemini Tasks for Query Mode...")
+            
+            # Run in parallel with a small delay to avoid instant 429
+            async def run_parallel():
+                async def get_graph():
+                    try:
+                        return await _generate_with_gemini_internal('gemini-2.0-flash', graph_prompt, forced_key_index=0)
+                    except Exception as e:
+                        logging.warning(f"All Gemini models failed for graph. Falling back to Groq/Cohere... Error: {e}")
+                        # Fallback to Groq if available, then Cohere
+                        try:
+                            resp = await generate_with_groq(graph_prompt)
+                            if resp: return resp
+                        except: pass
+                        
+                        try:
+                            resp = await generate_with_cohere(graph_prompt)
+                            if resp: return resp
+                        except: pass
+                        
+                        raise e # Re-raise if no fallbacks worked
+                
+                async def get_visuals():
+                    key_index = 1 if len(api_keys) > 1 else 0
+                    try:
+                        return await _generate_with_gemini_internal('gemini-2.0-flash', visual_prompt, forced_key_index=key_index)
+                    except:
+                        logging.warning("Failed to get visuals from Gemini, falling back to empty list")
+                        return json.dumps({"visual_prompts": []})
+
+                g_task = asyncio.create_task(get_graph())
+                await asyncio.sleep(2.0) # Increased Jitter to 2s to allow quota to breathe
+                v_task = asyncio.create_task(get_visuals())
+                return await asyncio.gather(g_task, v_task)
+
+            graph_resp, visual_resp = await run_parallel()
+            
+            # PARSE BOTH
+            def extract_json(text):
+                text = text.strip()
+                if "```json" in text:
+                    text = text.split("```json")[1].split("```")[0].strip()
+                elif "```" in text:
+                    text = text.split("```")[1].split("```")[0].strip()
+                return json.loads(text)
+
+            graph_data = extract_json(graph_resp)
+            visual_data = {}
+            try:
+                visual_data = extract_json(visual_resp)
+            except:
+                logging.warning("Failed to parse visual data, continuing without it")
+
+            # VALIDATE & NORMALIZE
+            graph_data = validate_and_normalize_graph(graph_data)
+
+            # MERGE VISUALS INTO NODES
+            prompts = visual_data.get("visual_prompts", [])
+            if prompts and "graph" in graph_data:
+                for i, node in enumerate(graph_data["graph"]["nodes"]):
+                    # Assign a unique visual prompt to each node for better imagery
+                    node["image_prompt"] = prompts[i % len(prompts)]
         
         elif request.mode == "programming":
+            # ... existing programming logic ...
+            prompt = f"""You are a senior software architect. Analyze the following code and create a high-level logic flow visualization.
+...""" # (Self-Correction: Need to keep the prompt content stable)
+            # Wait, I should not truncate the programming prompt here.
+            # Scaling back to use the existing code for programming while modifying only query.
+            
+            # Actually, I'll just use the full code in the replacement.
             prompt = f"""You are a senior software architect. Analyze the following code and create a high-level logic flow visualization.
 
 DO NOT create nodes for every variable or print statement. Instead, focus on the "Story" of the code:
@@ -402,21 +489,18 @@ Format as JSON with:
   - Relations: "FLOWS_TO" (sequence), "CALLS" (function calls), "CONTAINS" (hierarchy).
 
 Create 8-12 meaningful nodes that explain the code flow. Return ONLY valid JSON."""
-        
-        
-        response_text = await generate_with_fallback('gemini-2.5-flash', prompt)
-        
-        # Extract JSON from response
-        response_text = response_text.strip()
-        if "```json" in response_text:
-            response_text = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            response_text = response_text.split("```")[1].split("```")[0].strip()
-        
-        graph_data = json.loads(response_text)
-        
-        # VALIDATE & NORMALIZE
-        graph_data = validate_and_normalize_graph(graph_data)
+
+            response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+            
+            # Extract JSON from response
+            response_text = response_text.strip()
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            graph_data = json.loads(response_text)
+            graph_data = validate_and_normalize_graph(graph_data)
 
         # 1. SAVE GRAPH TO NEO4J
         if "graph" in graph_data:
@@ -463,7 +547,7 @@ Relations: CONTAINS, EXPLAINS, RELATED_TO
 Create 15-30 nodes. Return valid JSON only."""
         
         
-        response_text = await generate_with_fallback('gemini-2.5-flash', prompt)
+        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
         
         response_text = response_text.strip()
         if "```json" in response_text:
@@ -500,7 +584,7 @@ Current context: {len(request.current_graph.nodes)} existing nodes
 Create 5-8 new related nodes.
 Return ONLY valid JSON with "nodes" and "edges" lists."""
         
-        response_text = await generate_with_fallback('gemini-2.5-flash', prompt)
+        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
         
         response_text = response_text.strip()
         if "```json" in response_text:
@@ -621,7 +705,7 @@ async def explain_confusion(request: ExplainRequest):
 Provide: Simple explanation, Analogy, Steps.
 Format as JSON."""
         
-        response_text = await generate_with_fallback('gemini-2.5-flash', prompt)
+        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
         
         response_text = response_text.strip()
         if "```json" in response_text:

@@ -3,11 +3,12 @@ import cytoscape from "cytoscape";
 import cytoscapeDagre from "cytoscape-dagre";
 import "./GraphCanvas.css";
 import { Brain } from "lucide-react";
+import GraphLoadingAnimation from "./GraphLoadingAnimation";
 
 // Register plugins
 cytoscape.use(cytoscapeDagre);
 
-export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode, mode }) {
+export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode, mode, loading }) {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
   const layoutRef = useRef(null);
@@ -45,7 +46,11 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
               return importance === 'high' ? 4 : importance === 'medium' ? 3 : 2;
             },
             'border-color': '#6366f1',
-            'border-opacity': 0.5
+            'border-opacity': 0.5,
+            'opacity': (ele) => {
+              const importance = ele.data('importance');
+              return importance === 'low' ? 0.7 : 1;
+            }
           }
         },
         { selector: 'node[type="Concept"]', style: { 'border-color': '#3b82f6' } },
@@ -82,19 +87,26 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
           selector: 'edge',
           style: {
             'width': 2,
-            'line-color': '#adb5bd', // Lighter color for visibility
+            'line-color': '#adb5bd',
             'target-arrow-color': '#adb5bd',
             'target-arrow-shape': 'triangle',
-            'arrow-scale': 1.4,
-            'curve-style': 'taxi', // Better for logical flows
+            'arrow-scale': 1.2,
+            'curve-style': (ele) => {
+              // Use bezier for query mode, taxi for programming mode
+              return mode === 'query' ? 'bezier' : 'taxi';
+            },
             'taxi-direction': 'vertical',
-            'opacity': 0.8,
+            'opacity': mode === 'query' ? 0.6 : 0.8,
             'label': 'data(label)',
             'font-size': '10px',
             'color': '#f9fafb',
-            'text-background-color': '#0b1220',
+            'text-background-color': mode === 'query' ? 'rgba(17, 24, 39, 0.95)' : '#0b1220',
             'text-background-opacity': 1,
-            'text-background-padding': '3px',
+            'text-background-padding': mode === 'query' ? '5px 8px' : '3px',
+            'text-border-width': mode === 'query' ? 1 : 0,
+            'text-border-color': mode === 'query' ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
+            'text-border-opacity': 1,
+            'min-zoomed-font-size': 8,
             'text-outline-color': '#0b1220',
             'text-outline-width': 1,
             'z-index': 1
@@ -269,6 +281,16 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         fit: true,
         animate: shouldAnimate,
         animationDuration: 500
+      } : mode === 'query' ? {
+        name: 'breadthfirst',
+        directed: true,
+        spacingFactor: 1.5,
+        padding: 50,
+        animate: shouldAnimate,
+        animationDuration: 800,
+        fit: true,
+        avoidOverlap: true,
+        nodeDimensionsIncludeLabels: true
       } : {
         name: 'cose',
         randomize: false,
@@ -385,7 +407,9 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
   return (
     <div className="graph-canvas" data-testid="graph-canvas">
-      {graphData.nodes.length === 0 ? (
+      {loading ? (
+        <GraphLoadingAnimation />
+      ) : graphData.nodes.length === 0 ? (
         <div className="empty-graph" data-testid="empty-graph-state">
           <Brain size={64} className="empty-icon" />
           <h2>No Graph Yet</h2>

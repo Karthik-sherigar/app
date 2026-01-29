@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getIconForType } from './utils/iconMapper';
 import './NodeCard.css';
 
-const NodeCard = ({ node, onClick, style }) => {
+const NodeCard = ({ node, onClick }) => {
     const [isHovered, setIsHovered] = useState(false);
+    const [imageError, setImageError] = useState(false);
     const Icon = getIconForType(node.type);
 
-    // Dynamic Contextual Imagery from LoremFlickr (Unsplash Source is deprecated)
-    // Using keywords: label, type, and learning to get relevant educational visuals
-    const cleanLabel = node.label.replace(/[^a-zA-Z0-9 ]/g, ''); // Clean for better URL matching
-    const cardImage = `https://loremflickr.com/600/400/${encodeURIComponent(cleanLabel)},concept,education/all`;
+    // SMARTER IMAGING (V5 - AI PROMPT DRIVEN):
+    // Use the image_prompt from the backend if available, fallback to label.
+    const cleanLabel = (node.label || node.id).replace(/[^a-zA-Z0-9]/g, '');
+    const imageQuery = node.image_prompt || node.label || 'technology';
+    const seed = node.id.split('-').shift() || '0';
 
-    // Type-based fallback colors (used in CSS via style mapping if image fails)
+    // Deterministic tech-keyword image using node-specific AI prompt
+    const cardImage = `https://loremflickr.com/600/400/${encodeURIComponent(imageQuery.split(' ').slice(0, 2).join(','))},tech?lock=${seed.length * 99}`;
+
     const typeThemes = {
         concept: '#6366f1',
         prerequisite: '#f59e0b',
@@ -21,71 +25,100 @@ const NodeCard = ({ node, onClick, style }) => {
         codeblock: '#ec4899',
         documentsection: '#d946ef'
     };
-    const themeColor = typeThemes[node.type.toLowerCase()] || '#6366f1';
+    const themeColor = typeThemes[node.type?.toLowerCase()] || '#6366f1';
+
+    // Sub-concepts for the hover bubbles (extracted from description)
+    const subConcepts = node.description ?
+        node.description.split(' ').filter(w => w.length > 3).slice(0, 3).map(w => w.replace(/[^a-zA-Z]/g, '')) :
+        ['Logic', 'Core', 'Flow'];
 
     return (
         <motion.div
-            className={`node-card node-${node.type.toLowerCase()}`}
-            style={style}
-            initial={{ opacity: 0, scale: 0.9, y: 30 }}
-            whileInView={{ opacity: 1, scale: 1, y: 0 }}
-            viewport={{ once: true, margin: "-50px" }}
-            whileHover={{ y: -10, rotateX: -2, rotateY: 2 }}
-            transition={{ duration: 0.6, type: "spring", bounce: 0.4 }}
+            className={`node-card-v4 node-${node.type?.toLowerCase() || 'concept'}`}
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            whileHover={{ y: -15, scale: 1.05 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             onHoverStart={() => setIsHovered(true)}
             onHoverEnd={() => setIsHovered(false)}
             onClick={() => onClick && onClick(node)}
         >
-            {/* Main Visual Image Container */}
-            <div className="card-image-container">
-                <img
-                    src={cardImage}
-                    alt={node.label}
-                    className="card-image"
-                    onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'block';
-                    }}
-                />
-                <div className="card-image-fallback" style={{ background: `linear-gradient(135deg, ${themeColor}44, ${themeColor}11)` }} />
-                <div className="card-image-overlay" />
+            {/* Hover Discovery Bubbles */}
+            <AnimatePresence>
+                {isHovered && subConcepts.map((skill, i) => (
+                    <motion.div
+                        key={i}
+                        className="discovery-bubble"
+                        initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                        animate={{
+                            opacity: 1,
+                            scale: 1,
+                            x: Math.cos(i * (Math.PI * 2 / subConcepts.length)) * 140,
+                            y: Math.sin(i * (Math.PI * 2 / subConcepts.length)) * 140
+                        }}
+                        exit={{ opacity: 0, scale: 0 }}
+                        style={{ border: `1px solid ${themeColor}aa` }}
+                    >
+                        {skill}
+                    </motion.div>
+                ))}
+            </AnimatePresence>
 
-                {/* Dynamic Icon Floating in Image area */}
-                <div className="card-icon-floating" style={{ borderColor: `${themeColor}44` }}>
-                    <Icon size={24} strokeWidth={2} style={{ color: themeColor }} />
+            {/* Visual Header */}
+            <div className="card-visual-header">
+                {!imageError ? (
+                    <div
+                        className="card-image-v4"
+                        style={{
+                            backgroundImage: `url(${cardImage})`,
+                            filter: isHovered ? 'grayscale(0%) brightness(120%)' : 'grayscale(100%) brightness(50%) blur(1px)'
+                        }}
+                    >
+                        <img
+                            src={cardImage}
+                            alt=""
+                            style={{ display: 'none' }}
+                            onError={() => setImageError(true)}
+                        />
+                    </div>
+                ) : (
+                    <div className="card-image-v4 fallback-pattern" style={{
+                        background: `radial-gradient(circle at center, ${themeColor}44, #0b1220)`
+                    }} />
+                )}
+
+                <div className="card-image-mask" />
+
+                <div className="node-type-badge" style={{ backgroundColor: `${themeColor}22`, color: themeColor, borderColor: `${themeColor}44` }}>
+                    <Icon size={14} />
+                    <span>{node.type || 'Concept'}</span>
                 </div>
             </div>
 
-            {/* Immersive Glassmorphism Content */}
-            <div className="card-content-immersive">
-                <div className="card-header-row">
-                    <span className="card-type-label">{node.type}</span>
-                    {node.importance && (
-                        <div className={`importance-tag ${node.importance.toLowerCase()}`}>
-                            {node.importance}
-                        </div>
-                    )}
+            {/* Expanded Content Area */}
+            <div className="card-content-v4">
+                <div className="importance-bar">
+                    <div className={`importance-fill ${node.importance?.toLowerCase() || 'medium'}`} />
                 </div>
 
-                <h3 className="card-title-immersive">{node.label}</h3>
+                <h3 className="card-title-v4">{node.label}</h3>
 
-                <p className="card-description-immersive">
-                    {node.description || `Learning about ${node.label} is a key step in this knowledge journey.`}
+                <p className="card-description-v4">
+                    {node.description || `Learning about ${node.label} reveals critical insights into the structure and behavior of this domain.`}
+                    {" This discovery station provides the foundational logic required to bridge advanced theory and practical implementation."}
                 </p>
 
-                <div className="card-footer-action">
-                    <span>Discover Concept</span>
-                    <motion.span
-                        animate={{ x: isHovered ? 5 : 0 }}
-                        className="arrow-icon"
-                    >
-                        →
-                    </motion.span>
+                <div className="card-footer-v4">
+                    <div className="action-label" style={{ color: themeColor }}>
+                        DISCOVER STATION
+                        <motion.span animate={{ x: isHovered ? 5 : 0 }}>→</motion.span>
+                    </div>
                 </div>
             </div>
 
-            {/* Subtle premium glow border */}
-            <div className="card-border-glow" />
+            {/* Dynamic Glow Overlay */}
+            <div className="card-inner-glow" style={{ background: `radial-gradient(circle at 50% 120%, ${themeColor}33, transparent 70%)` }} />
         </motion.div>
     );
 };

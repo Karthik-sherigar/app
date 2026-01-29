@@ -69,22 +69,36 @@ export const calculateVerticalLayout = (nodes, edges) => {
     const layout = [];
     const depthKeys = Object.keys(nodesByDepth).sort((a, b) => parseInt(a) - parseInt(b));
 
+    const CONTAINER_WIDTH = 1400;
+    const VERTICAL_SPACING = 600;
+    const HEADER_OFFSET = 300;
+
     depthKeys.forEach((depth, depthIndex) => {
         const nodesAtDepth = nodesByDepth[depth];
         const nodeCount = nodesAtDepth.length;
+        const y = HEADER_OFFSET + parseInt(depth) * VERTICAL_SPACING;
 
         nodesAtDepth.forEach((nodeId, index) => {
             const node = nodeMap[nodeId];
 
+            // Calculate X based on count and index
+            // If 1 node: center
+            // If multiple: spread them out across the width
+            let x = CONTAINER_WIDTH / 2;
+            if (nodeCount > 1) {
+                const margin = 200;
+                const availableWidth = CONTAINER_WIDTH - (margin * 2);
+                x = margin + (index * (availableWidth / (nodeCount - 1)));
+            }
+
             layout.push({
                 ...node,
                 position: {
+                    x,
+                    y,
                     depth: parseInt(depth),
                     index: index,
-                    total: nodeCount,
-                    // For side-by-side layout
-                    column: nodeCount > 1 ? index : 0,
-                    columns: nodeCount
+                    total: nodeCount
                 }
             });
         });

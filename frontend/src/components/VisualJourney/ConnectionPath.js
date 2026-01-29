@@ -1,81 +1,103 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const ConnectionPath = ({ edge, sourceNode, targetNode }) => {
-    if (!sourceNode || !targetNode) return null;
+const ConnectionPath = ({ startPylon, endPylon, color = '#6366f1' }) => {
+    if (!startPylon || !endPylon) return null;
 
-    // Vertical spacing between depths (should match CSS as much as possible)
-    const sourceDepth = sourceNode.position?.depth || 0;
-    const targetDepth = targetNode.position?.depth || 0;
-    const depthSpacing = 450;
-    const headerOffset = 300;
-    const nodeHeight = 180;
+    // Relative coordinates between the two pylons
+    // startPylon: { x, y } - relative to the whole journey container or row
+    // In our case, pylons are centered in rows, so we know their y spacing
+    const x1 = startPylon.x;
+    const y1 = startPylon.y;
+    const x2 = endPylon.x;
+    const y2 = endPylon.y;
 
-    const x1 = 600; // Center X for 1200px container
-    const y1 = headerOffset + sourceDepth * depthSpacing + nodeHeight;
-    const x2 = 600;
-    const y2 = headerOffset + targetDepth * depthSpacing;
+    const dy = y2 - y1;
+    const dx = x2 - x1;
 
-    // Create curved path (with horizontal offset for multiple nodes if needed)
-    // For single column, we can add a subtle curve to avoid overlapping the timeline line exactly
-    const curveOffset = edge.relation === 'RELATED_TO' ? 60 : 30;
-    const midY = (y1 + y2) / 2;
-    const pathD = `M ${x1} ${y1} C ${x1 + curveOffset} ${midY}, ${x2 + curveOffset} ${midY}, ${x2} ${y2}`;
+    // Calculate a smooth S-curve (Bezier)
+    // Even if x1 === x2, a slight curve adds "track" flavor
+    const cp1y = y1 + dy * 0.4;
+    const cp2y = y1 + dy * 0.6;
 
-    // Get color based on relationship type
-    const getStrokeColor = (relation) => {
-        const colors = {
-            'DEPENDS_ON': '#f59e0b',
-            'EXPLAINS': '#6366f1',
-            'LEADS_TO': '#22c55e',
-            'RELATED_TO': '#a855f7'
-        };
-        return colors[relation] || '#6366f1';
-    };
+    // Main path definition
+    const pathD = `M ${x1} ${y1} C ${x1} ${cp1y}, ${x2} ${cp2y}, ${x2} ${y2}`;
 
-    const strokeColor = getStrokeColor(edge.relation);
+    // Sleepers (the wood/metal ties between rails)
+    // We sample points along the path to place them
+    const sleeperCount = Math.floor(dy / 40); // One sleeper Every 40px
+    const sleepers = [];
+
+    // Note: In real SVG we'd use getPointAtLength, but for React we can approximate 
+    // or just use a dashed stroke for the sleepers look.
+    // However, to make it look like a REAL train track, we'll use a specific stroke pattern.
 
     return (
-        <g className="connection-path">
-            {/* Road Background (Outer Glow/Margin) */}
+        <g className="railroad-track">
+            {/* 1. Track Bed (The dark gravel/ballast underneath) */}
             <motion.path
                 d={pathD}
-                stroke={strokeColor}
-                strokeWidth="20"
+                stroke="rgba(17, 24, 39, 0.6)"
+                strokeWidth="32"
                 fill="none"
-                opacity="0.05"
+                strokeLinecap="round"
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
                 transition={{ duration: 1.5, ease: "easeInOut" }}
             />
 
-            {/* Pavement Layer (Main Road) */}
+            {/* 2. Sleepers / Ties (Wooden/Concrete bars) */}
+            {/* We use a thick dashed line to simulate sleepers */}
             <motion.path
                 d={pathD}
-                stroke="rgba(31, 41, 55, 0.8)" /* Dark pavement color */
-                strokeWidth="12"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="24"
                 fill="none"
+                strokeDasharray="4, 36" /* 4px thick, 36px gap */
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
+                transition={{ duration: 1.8, ease: "easeInOut" }}
             />
 
-            {/* Center Line (Dashed) */}
+            {/* 3. The Rails (Double lines) */}
             <motion.path
                 d={pathD}
-                stroke={strokeColor}
+                stroke={color}
                 strokeWidth="2"
                 fill="none"
-                strokeDasharray="8,8"
-                opacity="0.6"
+                opacity="0.3"
+                style={{ transform: 'translateX(-6px)' }}
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
+                transition={{ duration: 2, ease: "easeInOut" }}
+            />
+            <motion.path
+                d={pathD}
+                stroke={color}
+                strokeWidth="2"
+                fill="none"
+                opacity="0.3"
+                style={{ transform: 'translateX(6px)' }}
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 2, ease: "easeInOut" }}
             />
 
-            {/* Animated particle (moving along the "road") */}
+            {/* 4. The Glowing Core (Energy Flow) */}
+            <motion.path
+                d={pathD}
+                stroke={color}
+                strokeWidth="1"
+                fill="none"
+                opacity="0.8"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 2.5, ease: "easeInOut" }}
+            />
+
+            {/* 5. Moving Engine / Particle */}
             <motion.circle
-                r="3"
+                r="4"
                 fill="#fff"
                 initial={{ offsetDistance: "0%", opacity: 0 }}
                 animate={{
@@ -83,41 +105,16 @@ const ConnectionPath = ({ edge, sourceNode, targetNode }) => {
                     opacity: [0, 1, 1, 0]
                 }}
                 transition={{
-                    duration: 3,
+                    duration: 4,
                     repeat: Infinity,
+                    delay: 1,
                     ease: "linear"
                 }}
                 style={{
                     offsetPath: `path('${pathD}')`,
-                    offsetRotate: '0deg',
-                    boxShadow: `0 0 10px ${strokeColor}`
+                    boxShadow: `0 0 15px ${color}`
                 }}
             />
-
-            {/* Relationship label with pill background */}
-            <g transform={`translate(${(x1 + x2) / 2 + (edge.relation === 'RELATED_TO' ? 45 : 25)}, ${(y1 + y2) / 2})`}>
-                <rect
-                    x="-40"
-                    y="-10"
-                    width="80"
-                    height="20"
-                    rx="10"
-                    fill="rgba(17, 24, 39, 0.9)"
-                    stroke={strokeColor}
-                    strokeWidth="1"
-                    style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' }}
-                />
-                <text
-                    fill={strokeColor}
-                    fontSize="9"
-                    fontWeight="700"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="connection-label"
-                >
-                    {edge.relation}
-                </text>
-            </g>
         </g>
     );
 };

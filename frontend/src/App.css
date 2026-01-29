@@ -512,8 +512,17 @@ h4 {
   flex: 1;
   position: relative;
   overflow-y: auto;
+  /* Ensure this is active */
   overflow-x: hidden;
   background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.1), transparent 50%);
+  height: 100%;
+  /* Fill parent flex */
+}
+
+.workspace.no-scroll {
+  overflow-y: hidden !important;
+  pointer-events: none;
+  /* Block interactions during loading */
 }
 
 /* Split View Layout */

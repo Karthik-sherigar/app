@@ -6,6 +6,7 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import GraphCanvas from "./components/GraphCanvas";
 import VisualJourney from "./components/VisualJourney/VisualJourney";
+import ConceptExplorationDialog from "./components/VisualJourney/ConceptExplorationDialog";
 import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
@@ -35,6 +36,70 @@ function App() {
   const [showChat, setShowChat] = useState(false);
   const [hasNewResponse, setHasNewResponse] = useState(false);
 
+  // Exploration Stack for Deep-Dives
+  const [explorationStack, setExplorationStack] = useState([]); // [{ concept, data, graph, index, siblings }]
+
+  // Navigation within the stack
+  const pushExploration = async (node, index = null, siblings = null) => {
+    setLoading(true);
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await axios.post(`${API}/generate-graph`, {
+          query: `Construct a specialized Knowledge Expedition through the sub-architecture of: ${node.label}. Identify 8-12 distinct technical 'stations' that explore its inner logic, data flow, and functional components in a sequential roadmap. Each station should be a unique sub-concept.`,
+          mode: "query"
+        });
+
+        const newEntry = {
+          concept: node,
+          data: response.data,
+          graph: response.data.graph || { nodes: [], edges: [] },
+          index: index,
+          siblings: siblings
+        };
+
+        setExplorationStack(prev => [...prev, newEntry]);
+        toast.success(`Station Discovered: ${node.label}`);
+        setLoading(false);
+        return; // Success
+      } catch (e) {
+        attempts++;
+        if (attempts < maxAttempts) {
+          toast.warning(`Expedition Delayed (Quota). Retrying in 5s... (${attempts}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          toast.error(`Access Denied to Station: ${node.label}`);
+          console.error(e);
+        }
+      }
+    }
+    setLoading(false);
+  };
+
+  const navigateSibling = (direction) => {
+    const currentEntry = explorationStack[explorationStack.length - 1];
+    if (!currentEntry || !currentEntry.siblings) return;
+
+    const nextIndex = direction === 'next' ? currentEntry.index + 1 : currentEntry.index - 1;
+    if (nextIndex >= 0 && nextIndex < currentEntry.siblings.length) {
+      // Pop current level and push next sibling to replace it
+      setExplorationStack(prev => prev.slice(0, -1));
+      pushExploration(currentEntry.siblings[nextIndex], nextIndex, currentEntry.siblings);
+    } else {
+      toast.info(`End of the station line reached.`);
+    }
+  };
+
+  const popExploration = () => {
+    setExplorationStack(prev => prev.slice(0, -1));
+  };
+
+  const clearExploration = () => {
+    setExplorationStack([]);
+  };
+
   useEffect(() => {
     checkBackendHealth();
     fetchHistory();
@@ -48,6 +113,7 @@ function App() {
     setShowExplanation(false);
     setShowChat(false);
     setHasNewResponse(false);
+    clearExploration();
   }, [mode]);
 
   const checkBackendHealth = async () => {
@@ -70,31 +136,36 @@ function App() {
 
   const generateGraph = async (query, selectedMode) => {
     setLoading(true);
-    try {
-      const response = await axios.post(`${API}/generate-graph`, {
-        query,
-        mode: selectedMode || mode
-      });
+    let attempts = 0;
+    const maxAttempts = 3;
 
-      // Handle nested graph structure as per new backend format
-      const data = response.data;
-      // Normalize data: ensure graphData contains nodes/edges at top level for GraphCanvas
-      // but also contains the full response structure for TextResponsePanel
-      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
-      setGraphData(normalizedData);
+    while (attempts < maxAttempts) {
+      try {
+        const response = await axios.post(`${API}/generate-graph`, {
+          query,
+          mode: selectedMode || mode
+        });
 
-      if (!showChat) {
+        const data = response.data;
+        setGraphData(data.graph || { nodes: [], edges: [] });
+        setSelectedNode(null);
+        setShowNodePanel(false);
         setHasNewResponse(true);
+        setLoading(false);
+        fetchHistory(); // Refresh history
+        return; // Success
+      } catch (e) {
+        attempts++;
+        if (attempts < maxAttempts) {
+          toast.warning(`Expedition Delayed (Quota). Retrying in 5s... (${attempts}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          toast.error("Failed to generate knowledge graph. Please check your query or try again later.");
+          setGraphData({ nodes: [], edges: [] });
+        }
       }
-
-      toast.success("Knowledge graph generated!");
-      fetchHistory();
-    } catch (e) {
-      toast.error("Failed to generate graph");
-      console.error(e);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const generateGraphFromPDF = async (file) => {
@@ -114,10 +185,10 @@ function App() {
         setHasNewResponse(true);
       }
 
-      toast.success("PDF analyzed successfully!");
+      toast.success("Document architecture extracted!");
       fetchHistory();
     } catch (e) {
-      toast.error("Failed to process PDF");
+      toast.error("Failed to process document structure.");
       console.error(e);
     } finally {
       setLoading(false);
@@ -133,15 +204,14 @@ function App() {
         current_graph: { nodes: graphData.nodes, edges: graphData.edges }
       });
 
-      // Expand node returns just nodes/edges usually
       setGraphData(prev => ({
         ...prev,
         nodes: [...prev.nodes, ...response.data.nodes],
         edges: [...prev.edges, ...response.data.edges]
       }));
-      toast.success("Node expanded!");
+      toast.success("Satellite concepts deployed!");
     } catch (e) {
-      toast.error("Failed to expand node");
+      toast.error("Node expansion failed.");
       console.error(e);
     } finally {
       setLoading(false);
@@ -158,7 +228,7 @@ function App() {
       setExplanationData(response.data);
       setShowExplanation(true);
     } catch (e) {
-      toast.error("Failed to generate explanation");
+      toast.error("Failed to resolve concept confusion.");
       console.error(e);
     } finally {
       setLoading(false);
@@ -170,15 +240,20 @@ function App() {
     setSelectedNode(null);
     setShowNodePanel(false);
     setShowExplanation(false);
-    toast.info("Graph reset");
+    clearExploration();
+    toast.info("Map cleared.");
   };
 
-  /* eslint-disable react-hooks/exhaustive-deps */
-  const handleNodeClick = React.useCallback((node) => {
-    setSelectedNode(node);
-    setShowNodePanel(true);
-    setExternalSelectedNode(node?.id);
-  }, []);
+  const handleNodeClick = React.useCallback((node, index = null, siblings = null) => {
+    if (mode === 'query') {
+      // Trigger full-page Deep-Dive
+      pushExploration(node, index, siblings);
+    } else {
+      setSelectedNode(node);
+      setShowNodePanel(true);
+      setExternalSelectedNode(node?.id);
+    }
+  }, [mode]);
 
   const handleTextNodeClick = React.useCallback((nodeId) => {
     const node = graphData.nodes.find(n => n.id === nodeId);
@@ -195,21 +270,16 @@ function App() {
     }
   };
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   const restoreFromHistory = (historyItem) => {
     if (historyItem.response_data) {
       const data = historyItem.response_data;
       const normalizedData = data.graph ? { ...data.graph, ...data } : data;
       setGraphData(normalizedData);
       setMode(historyItem.mode);
-
       if (!showChat) {
         setHasNewResponse(true);
       }
-
-      toast.success("Restored from history");
-    } else {
-      toast.info("No data available in history");
+      toast.success("Expedition history restored.");
     }
   };
 
@@ -233,7 +303,7 @@ function App() {
             if (selectedNode) {
               explainConfusion(selectedNode.label);
             } else {
-              toast.error("Select a node first");
+              toast.error("Identify a station first.");
             }
           }}
           resetGraph={resetGraph}
@@ -244,12 +314,16 @@ function App() {
           setIsCollapsed={setIsSidebarCollapsed}
         />
 
-        <main className="workspace" data-testid="main-workspace" style={{ position: 'relative' }}>
+        <main
+          className={`workspace ${loading ? 'no-scroll' : ''}`}
+          data-testid="main-workspace"
+          style={{ position: 'relative' }}
+        >
           {loading && (
             <div className="loading-overlay" data-testid="loading-indicator">
               <div className="spinner"></div>
-              <p>Generating Knowledge Graph...</p>
-              <p className="loading-sub">Analyzing Concepts...</p>
+              <p>Mapping Knowledge Expedition...</p>
+              <p className="loading-sub">Scanning Conceptual Nodes...</p>
             </div>
           )}
 
@@ -276,7 +350,7 @@ function App() {
                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
                   >
                     <div className="chat-panel-header">
-                      <h3>Explanation</h3>
+                      <h3>Analysis</h3>
                       <button className="chat-close-btn" onClick={() => setShowChat(false)}>
                         <X size={20} />
                       </button>
@@ -304,6 +378,7 @@ function App() {
                   onNodeClick={handleNodeClick}
                   selectedNode={externalSelectedNode}
                   mode={mode}
+                  loading={loading}
                 />
               )}
 
@@ -324,23 +399,20 @@ function App() {
             </>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">📊</div>
-              <h3>No Knowledge Graph Yet</h3>
-              <p>Enter a query or upload a document to generate<br />knowledge graph and explanation</p>
+              <div className="empty-icon">🗺️</div>
+              <h3>Expedition Not Started</h3>
+              <p>Enter a query to map your learning path<br />or upload a data source.</p>
             </div>
           )}
         </main>
 
-        {/* Bottom Input Bar - Restored for Knowledge Road View */}
-        {
-          mode === "query" && (
-            <BottomInputBar
-              onSubmit={(query) => generateGraph(query, "query")}
-              loading={loading}
-              disabled={backendStatus !== "connected"}
-            />
-          )
-        }
+        {mode === "query" && (
+          <BottomInputBar
+            onSubmit={(query) => generateGraph(query, "query")}
+            loading={loading}
+            disabled={backendStatus !== "connected"}
+          />
+        )}
 
         <AnimatePresence>
           {showNodePanel && selectedNode && (
@@ -362,10 +434,31 @@ function App() {
             />
           )}
         </AnimatePresence>
-      </div >
+      </div>
 
-      <Toaster position="bottom-right" />
-    </div >
+      <Toaster position="bottom-right" theme="dark" />
+
+      {/* Concept Deep-Dive Expedition Stack */}
+      <AnimatePresence>
+        {explorationStack.map((entry, index) => (
+          <ConceptExplorationDialog
+            key={index}
+            concept={entry.concept}
+            data={entry.data}
+            subgraph={entry.graph}
+            index={index}
+            total={explorationStack.length}
+            onClose={clearExploration}
+            onBack={popExploration}
+            onNext={() => navigateSibling('next')}
+            onPrev={() => navigateSibling('prev')}
+            canGoBack={index > 0 || (entry.siblings && entry.index > 0)}
+            canGoNext={entry.siblings && entry.index < entry.siblings.length - 1}
+            onDeepDive={(node) => pushExploration(node, null, entry.graph.nodes)}
+          />
+        ))}
+      </AnimatePresence>
+    </div>
   );
 }
 
