@@ -559,6 +559,39 @@ async def execute_code(request: CodeExecutionRequest):
                     stderr=subprocess.PIPE,
                     text=True
                 )
+            elif lang == "java":
+                # For Java, we need a specific class name. We'll try to extract it or use 'Main'
+                import re
+                class_match = re.search(r'public\s+class\s+(\w+)', code)
+                class_name = class_match.group(1) if class_match else "Main"
+                
+                # Create a temporary directory for Java files
+                temp_dir = tempfile.mkdtemp()
+                java_file_path = os.path.join(temp_dir, f"{class_name}.java")
+                with open(java_file_path, "w") as jf:
+                    jf.write(code)
+                
+                # Compile
+                compile_proc = subprocess.run(
+                    ["javac", java_file_path],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if compile_proc.returncode != 0:
+                    return {
+                        "output": "",
+                        "error": f"Compilation Error:\n{compile_proc.stderr}",
+                        "success": False
+                    }
+                
+                # Run
+                process = subprocess.Popen(
+                    ["java", "-cp", temp_dir, class_name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
             else:
                 return {"output": "", "error": f"Execution for {lang} is not supported yet.", "success": False}
 
