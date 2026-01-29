@@ -39,11 +39,11 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${isCollapsed && mode !== "query" ? "collapsed" : ""}`}
+      className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "programming" ? "collapsed" : ""}`}
       data-testid="sidebar"
     >
-      {/* Manual Toggle - Only for non-query modes */}
-      {mode !== "query" && (
+      {/* Manual Toggle - Only for modes that don't autohide */}
+      {mode !== "query" && mode !== "programming" && (
         <div className="sidebar-toggle-container">
           <button
             className="sidebar-collapse-btn"
