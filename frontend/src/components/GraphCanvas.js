@@ -82,23 +82,22 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
           selector: 'edge',
           style: {
             'width': 2,
-            'line-color': '#4b5563',
-            'target-arrow-color': '#4b5563',
+            'line-color': '#adb5bd', // Lighter color for visibility
+            'target-arrow-color': '#adb5bd',
             'target-arrow-shape': 'triangle',
-            'arrow-scale': 1.2,
-            'curve-style': 'unbundled-bezier',
-            'opacity': 0.6,
+            'arrow-scale': 1.4,
+            'curve-style': 'taxi', // Better for logical flows
+            'taxi-direction': 'vertical',
+            'opacity': 0.8,
             'label': 'data(label)',
             'font-size': '10px',
-            'color': '#9ca3af',
-            'text-background-color': '#1f2937',
+            'color': '#f9fafb',
+            'text-background-color': '#0b1220',
             'text-background-opacity': 1,
-            'text-background-padding': '4px',
-            'text-border-radius': '8px',
-            'text-border-width': 1,
-            'text-border-color': '#374151',
+            'text-background-padding': '3px',
             'text-outline-color': '#0b1220',
-            'text-outline-width': 1
+            'text-outline-width': 1,
+            'z-index': 1
           }
         },
         {
@@ -109,8 +108,9 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
         },
         { selector: 'edge[label="DEPENDS_ON"]', style: { 'line-style': 'dashed' } },
         { selector: 'edge[label="RELATED_TO"]', style: { 'width': 1, 'line-style': 'dotted' } },
-        { selector: 'edge[label="FLOWS_TO"]', style: { 'width': 3, 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'arrow-scale': 1.5 } },
-        { selector: 'edge[label="CALLS"]', style: { 'line-style': 'dashed', 'line-color': '#10b981', 'target-arrow-color': '#10b981' } }
+        { selector: 'edge[label="FLOWS_TO"]', style: { 'width': 4, 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'arrow-scale': 1.6 } },
+        { selector: 'edge[label="CALLS"]', style: { 'line-style': 'dashed', 'line-color': '#10b981', 'target-arrow-color': '#10b981' } },
+        { selector: 'edge[label="CONTAINS"]', style: { 'line-style': 'dotted', 'line-color': '#94a3b8', 'target-arrow-shape': 'none', 'width': 1 } }
       ],
       minZoom: 0.3,
       maxZoom: 3,
@@ -262,7 +262,7 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
       const layoutOptions = mode === 'programming' ? {
         name: 'dagre',
-        rankDir: 'LR',
+        rankDir: 'TB',
         nodeSep: 80,
         rankSep: 150,
         padding: 40,
