@@ -226,38 +226,47 @@ export default function ProgrammingView({
 
                         <div className="graph-viewer">
                             {graphData.nodes.length > 0 ? (
-                                <>
-                                    <GraphCanvas
-                                        graphData={graphData}
-                                        onNodeClick={onNodeClick}
-                                        selectedNode={selectedNode}
-                                        externalSelectedNode={externalSelectedNode}
-                                        mode="programming"
-                                    />
+                                <PanelGroup direction="vertical">
+                                    <Panel minSize={30}>
+                                        <GraphCanvas
+                                            graphData={graphData}
+                                            onNodeClick={onNodeClick}
+                                            selectedNode={selectedNode}
+                                            externalSelectedNode={externalSelectedNode}
+                                            mode="programming"
+                                        />
+                                    </Panel>
 
-                                    {/* AI Explanation Overlay */}
-                                    <div className={`explanation-overlay ${showExplanation ? 'expanded' : 'collapsed'}`}>
-                                        <div className="overlay-header" onClick={() => setShowExplanation(!showExplanation)}>
-                                            <div className="header-left">
-                                                <Info size={16} className="text-accent" />
-                                                <span>AI Analysis Summary</span>
+                                    <PanelResizeHandle className="resize-handle-v">
+                                        <div className="handle-line-h" />
+                                    </PanelResizeHandle>
+
+                                    <Panel defaultSize={30} minSize={15}>
+                                        <div className="logic-summary-panel">
+                                            <div className="panel-header" onClick={() => setShowExplanation(!showExplanation)}>
+                                                <div className="header-left">
+                                                    <Info size={16} className="text-accent" />
+                                                    <span>AI LOGIC ANALYSIS SUMMARY</span>
+                                                </div>
+                                                {showExplanation ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
                                             </div>
-                                            {showExplanation ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                                            <AnimatePresence>
+                                                {showExplanation && (
+                                                    <motion.div
+                                                        className="panel-body"
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: "auto", opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                    >
+                                                        <div className="summary-content">
+                                                            {graphData.answer}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
                                         </div>
-                                        <AnimatePresence>
-                                            {showExplanation && (
-                                                <motion.div
-                                                    className="overlay-body"
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: "auto", opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                >
-                                                    <p>{graphData.answer}</p>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                </>
+                                    </Panel>
+                                </PanelGroup>
                             ) : (
                                 <div className="empty-graph-placeholder">
                                     <div className="placeholder-icon">🤖</div>
