@@ -303,6 +303,7 @@ function App() {
                   graphData={graphData}
                   onNodeClick={handleNodeClick}
                   selectedNode={externalSelectedNode}
+                  mode={mode}
                 />
               )}
 
