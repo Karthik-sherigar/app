@@ -67,6 +67,10 @@ class ExplainRequest(BaseModel):
     topic: str
     confusion: Optional[str] = None
 
+class CodeExecutionRequest(BaseModel):
+    code: str
+    language: str
+
 class HistoryItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -525,6 +529,56 @@ Return ONLY valid JSON with "nodes" and "edges" lists."""
     except Exception as e:
         logging.error(f"Node expansion error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/execute-code")
+async def execute_code(request: CodeExecutionRequest):
+    import subprocess
+    import tempfile
+    import os
+
+    lang = request.language.lower()
+    code = request.code
+
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{lang if lang != "javascript" else "js"}', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+
+        try:
+            if lang == "python":
+                process = subprocess.Popen(
+                    ["python", temp_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+            elif lang == "javascript":
+                process = subprocess.Popen(
+                    ["node", temp_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+            else:
+                return {"output": "", "error": f"Execution for {lang} is not supported yet.", "success": False}
+
+            stdout, stderr = process.communicate(timeout=5)
+            
+            return {
+                "output": stdout,
+                "error": stderr,
+                "success": process.returncode == 0
+            }
+
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    except subprocess.TimeoutExpired:
+        return {"output": "", "error": "Execution timed out (5s limit)", "success": False}
+    except Exception as e:
+        logging.error(f"Code execution error: {e}")
+        return {"output": "", "error": str(e), "success": False}
 
 @api_router.post("/explain-confusion")
 async def explain_confusion(request: ExplainRequest):
