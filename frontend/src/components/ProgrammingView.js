@@ -85,6 +85,93 @@ export default function ProgrammingView({
     return (
         <div className="programming-view-container">
             <PanelGroup direction="horizontal">
+                {/* Graph/Analysis Section - NOW ON THE LEFT */}
+                <Panel minSize={30}>
+                    <div className="graph-section">
+                        <div className="graph-toolbar">
+                            <div className="toolbar-left">
+                                <span className="toolbar-title">AI GRAPH ANALYSIS</span>
+                                {loading && <div className="loading-dot" />}
+                            </div>
+                            <div className="toolbar-right">
+                                <button
+                                    className="toolbar-btn"
+                                    onClick={() => setIsFullscreen(true)}
+                                    disabled={graphData.nodes.length === 0}
+                                    title="Fullscreen Mode"
+                                >
+                                    <Maximize2 size={16} />
+                                </button>
+                                <button
+                                    className="btn-analyze"
+                                    onClick={() => onGenerateGraph(code, "programming")}
+                                    disabled={!code.trim() || loading}
+                                >
+                                    <Play size={16} fill="currentColor" />
+                                    Analyze
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="graph-viewer">
+                            {graphData.nodes.length > 0 ? (
+                                <PanelGroup direction="vertical">
+                                    <Panel minSize={30}>
+                                        <GraphCanvas
+                                            graphData={graphData}
+                                            onNodeClick={onNodeClick}
+                                            selectedNode={selectedNode}
+                                            externalSelectedNode={externalSelectedNode}
+                                            mode="programming"
+                                        />
+                                    </Panel>
+
+                                    <PanelResizeHandle className="resize-handle-v">
+                                        <div className="handle-line-h" />
+                                    </PanelResizeHandle>
+
+                                    <Panel defaultSize={30} minSize={15}>
+                                        <div className="logic-summary-panel">
+                                            <div className="panel-header" onClick={() => setShowExplanation(!showExplanation)}>
+                                                <div className="header-left">
+                                                    <Info size={16} className="text-accent" />
+                                                    <span>AI LOGIC ANALYSIS SUMMARY</span>
+                                                </div>
+                                                {showExplanation ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                                            </div>
+                                            <AnimatePresence>
+                                                {showExplanation && (
+                                                    <motion.div
+                                                        className="panel-body"
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: "auto", opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                    >
+                                                        <div className="summary-content">
+                                                            {graphData.answer}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
+                                    </Panel>
+                                </PanelGroup>
+                            ) : (
+                                <div className="empty-graph-placeholder">
+                                    <div className="placeholder-icon">🤖</div>
+                                    <h3>Waiting for Code Analysis</h3>
+                                    <p>Write or open code and click "Analyze" to see its logic structure.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Panel>
+
+                <PanelResizeHandle className="resize-handle">
+                    <div className="handle-line" />
+                </PanelResizeHandle>
+
+                {/* Editor Section - NOW ON THE RIGHT */}
                 <Panel defaultSize={45} minSize={30}>
                     <div className="editor-section">
                         <div className="editor-toolbar">
@@ -189,91 +276,6 @@ export default function ProgrammingView({
                                 )}
                                 Run Code
                             </button>
-                        </div>
-                    </div>
-                </Panel>
-
-                <PanelResizeHandle className="resize-handle">
-                    <div className="handle-line" />
-                </PanelResizeHandle>
-
-                <Panel minSize={30}>
-                    <div className="graph-section">
-                        <div className="graph-toolbar">
-                            <div className="toolbar-left">
-                                <span className="toolbar-title">AI GRAPH ANALYSIS</span>
-                                {loading && <div className="loading-dot" />}
-                            </div>
-                            <div className="toolbar-right">
-                                <button
-                                    className="toolbar-btn"
-                                    onClick={() => setIsFullscreen(true)}
-                                    disabled={graphData.nodes.length === 0}
-                                    title="Fullscreen Mode"
-                                >
-                                    <Maximize2 size={16} />
-                                </button>
-                                <button
-                                    className="btn-analyze"
-                                    onClick={() => onGenerateGraph(code, "programming")}
-                                    disabled={!code.trim() || loading}
-                                >
-                                    <Play size={16} fill="currentColor" />
-                                    Analyze
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="graph-viewer">
-                            {graphData.nodes.length > 0 ? (
-                                <PanelGroup direction="vertical">
-                                    <Panel minSize={30}>
-                                        <GraphCanvas
-                                            graphData={graphData}
-                                            onNodeClick={onNodeClick}
-                                            selectedNode={selectedNode}
-                                            externalSelectedNode={externalSelectedNode}
-                                            mode="programming"
-                                        />
-                                    </Panel>
-
-                                    <PanelResizeHandle className="resize-handle-v">
-                                        <div className="handle-line-h" />
-                                    </PanelResizeHandle>
-
-                                    <Panel defaultSize={30} minSize={15}>
-                                        <div className="logic-summary-panel">
-                                            <div className="panel-header" onClick={() => setShowExplanation(!showExplanation)}>
-                                                <div className="header-left">
-                                                    <Info size={16} className="text-accent" />
-                                                    <span>AI LOGIC ANALYSIS SUMMARY</span>
-                                                </div>
-                                                {showExplanation ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                                            </div>
-                                            <AnimatePresence>
-                                                {showExplanation && (
-                                                    <motion.div
-                                                        className="panel-body"
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: "auto", opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                    >
-                                                        <div className="summary-content">
-                                                            {graphData.answer}
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                        </div>
-                                    </Panel>
-                                </PanelGroup>
-                            ) : (
-                                <div className="empty-graph-placeholder">
-                                    <div className="placeholder-icon">🤖</div>
-                                    <h3>Waiting for Code Analysis</h3>
-                                    <p>Write or open code and click "Analyze" to see its logic structure.</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </Panel>
