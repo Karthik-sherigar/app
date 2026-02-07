@@ -24,12 +24,19 @@ fi
 echo "Installing/Updating backend dependencies..."
 pip install -r requirements.txt
 
-# Run backend in background
-uvicorn server:app --reload --host 0.0.0.0 --port 8000 &
+# Run sub-servers in background
+echo "🚀 Starting Mode Servers (8001, 8002, 8003)..."
+uvicorn query_server:app --host 0.0.0.0 --port 8001 &
+uvicorn pdf_server:app --host 0.0.0.0 --port 8002 &
+uvicorn programming_server:app --host 0.0.0.0 --port 8003 &
+
+# Run root gateway in background
+echo "🚀 Starting Root Gateway (8000)..."
+uvicorn server:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
-sleep 2
+sleep 5
 
 # Start Frontend
 echo "🚀 Starting Frontend (Port 3000)..."
