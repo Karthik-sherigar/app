@@ -169,7 +169,9 @@ function App() {
         });
 
         const data = response.data;
-        setGraphData(data.graph || { nodes: [], edges: [] });
+        // Merge graph data with metadata like 'answer' and 'sections'
+        const normalizedData = data.graph ? { ...data, nodes: data.graph.nodes, edges: data.graph.edges } : data;
+        setGraphData(normalizedData);
         setSelectedNode(null);
         setShowNodePanel(false);
         setHasNewResponse(true);
