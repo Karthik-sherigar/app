@@ -1,148 +1,185 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import './GraphLoadingAnimation.css';
 
-const GraphLoadingAnimation = () => {
+const NODE_LABELS = [
+    "Analyzing...",
+    "Extracting...",
+    "Mapping...",
+    "Linking...",
+    "Synthesizing...",
+    "Optimizing...",
+    "Categorizing..."
+];
+
+const ICONS = {
+    concept: (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v8m0 0l-4-4m4 4l4-4M5 22h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v13a2 2 0 002 2z" />
+        </svg>
+    ),
+    logic: (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+    ),
+    data: (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+        </svg>
+    ),
+    code: (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+        </svg>
+    )
+};
+
+const SkeletonCard = ({ x, y, type = 'concept', label = '' }) => (
+    <motion.div
+        className="skeleton-card pill colored-node"
+        initial={{ opacity: 0, scale: 0.8, x: x - 75, y: y - 18 }}
+        animate={{ opacity: 1, scale: 1, x: x - 75, y: y - 18 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+    >
+        <div className="card-inner-construction">
+            <div className={`skeleton-icon-box ${type}`}>{ICONS[type]}</div>
+            <div className="skeleton-text-content">
+                <span className="node-status-label">{label}</span>
+                <div className="shimmer-line" />
+            </div>
+        </div>
+    </motion.div>
+);
+
+const SkeletonLine = ({ x1, y1, x2, y2, id }) => (
+    <svg className="skeleton-edge-container" style={{ pointerEvents: 'none' }}>
+        <motion.path
+            key={`path-${id}`}
+            d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + 30} ${(y1 + y2) / 2} ${x2} ${y2}`}
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.12)"
+            strokeWidth="1.5"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeInOut" }}
+        />
+    </svg>
+);
+
+const INITIAL_NODES = [
+    { id: 'root', x: 300, y: 60, type: 'concept', parent: null, label: 'Root Concept' }
+];
+
+const GraphLoadingAnimation = ({ mode = 'query' }) => {
+    const [nodes, setNodes] = useState(INITIAL_NODES);
+
+    useEffect(() => {
+        const spawnInterval = setInterval(() => {
+            setNodes(prevNodes => {
+                let nextNodes = [...prevNodes];
+
+                if (nextNodes.length >= 7) {
+                    // Smooth pruning
+                    nextNodes.splice(1, 1);
+                }
+
+                const parent = nextNodes[Math.floor(Math.random() * nextNodes.length)];
+                const nodeType = ['concept', 'logic', 'data', 'code'][Math.floor(Math.random() * 4)];
+
+                let newNode = null;
+                let attempts = 0;
+                const MIN_DISTANCE = 110; // Increased distance to prevent overlap
+
+                while (attempts < 8) {
+                    const testNode = {
+                        id: `node-${Date.now()}-${attempts}`,
+                        x: parent.x + (Math.random() * 340 - 170),
+                        y: parent.y + 140 + (Math.random() * 40),
+                        type: nodeType,
+                        label: NODE_LABELS[Math.floor(Math.random() * NODE_LABELS.length)],
+                        parent: { x: parent.x, y: parent.y }
+                    };
+
+                    // Constraints to stay in view
+                    if (testNode.x < 130) testNode.x = 160;
+                    if (testNode.x > 470) testNode.x = 440;
+
+                    // Collision check against all existing nodes
+                    const isOverlapping = nextNodes.some(node => {
+                        const dx = node.x - testNode.x;
+                        const dy = node.y - testNode.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        return dist < MIN_DISTANCE;
+                    });
+
+                    if (!isOverlapping || attempts === 7) {
+                        newNode = testNode;
+                        if (!isOverlapping) break; // Found a good spot
+                    }
+                    attempts++;
+                }
+
+                if (newNode.y > 520) {
+                    return INITIAL_NODES; // Reset if too deep
+                }
+
+                return [...nextNodes, newNode];
+            });
+        }, 1500);
+
+        return () => clearInterval(spawnInterval);
+    }, []);
+
+    if (mode !== 'query') {
+        return (
+            <div className="graph-loading-container minimal">
+                <div className="minimal-loader">
+                    <motion.div
+                        className="minimal-bar"
+                        animate={{ width: ["0%", "100%", "0%"] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                    <p className="loading-subtitle">Processing Data...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="graph-loading-container">
             <div className="graph-loading-content">
-                {/* Animated Neural Network */}
-                <svg className="neural-network-svg" viewBox="0 0 400 400">
-                    {/* Nodes */}
-                    {[...Array(12)].map((_, i) => {
-                        const angle = (i / 12) * Math.PI * 2;
-                        const radius = 120;
-                        const cx = 200 + Math.cos(angle) * radius;
-                        const cy = 200 + Math.sin(angle) * radius;
-
-                        return (
-                            <motion.circle
-                                key={`node-${i}`}
-                                cx={cx}
-                                cy={cy}
-                                r="8"
-                                fill="url(#nodeGradient)"
-                                initial={{ scale: 0, opacity: 0 }}
-                                animate={{
-                                    scale: [0, 1.2, 1],
-                                    opacity: [0, 1, 0.8]
-                                }}
-                                transition={{
-                                    duration: 1.5,
-                                    delay: i * 0.1,
-                                    repeat: Infinity,
-                                    repeatDelay: 2
-                                }}
+                <div className="skeleton-construction-area">
+                    <AnimatePresence>
+                        {nodes.map(node => node.parent && (
+                            <SkeletonLine
+                                key={`edge-${node.id}`}
+                                id={node.id}
+                                x1={node.parent.x}
+                                y1={node.parent.y}
+                                x2={node.x}
+                                y2={node.y}
                             />
-                        );
-                    })}
+                        ))}
+                    </AnimatePresence>
 
-                    {/* Connecting Lines */}
-                    {[...Array(12)].map((_, i) => {
-                        const angle1 = (i / 12) * Math.PI * 2;
-                        const angle2 = ((i + 1) / 12) * Math.PI * 2;
-                        const radius = 120;
-                        const x1 = 200 + Math.cos(angle1) * radius;
-                        const y1 = 200 + Math.sin(angle1) * radius;
-                        const x2 = 200 + Math.cos(angle2) * radius;
-                        const y2 = 200 + Math.sin(angle2) * radius;
-
-                        return (
-                            <motion.line
-                                key={`line-${i}`}
-                                x1={x1}
-                                y1={y1}
-                                x2={x2}
-                                y2={y2}
-                                stroke="url(#lineGradient)"
-                                strokeWidth="2"
-                                initial={{ pathLength: 0, opacity: 0 }}
-                                animate={{
-                                    pathLength: [0, 1],
-                                    opacity: [0, 0.6, 0.3]
-                                }}
-                                transition={{
-                                    duration: 2,
-                                    delay: i * 0.15,
-                                    repeat: Infinity,
-                                    repeatDelay: 1.5
-                                }}
+                    <AnimatePresence>
+                        {nodes.map(node => (
+                            <SkeletonCard
+                                key={node.id}
+                                x={node.x}
+                                y={node.y}
+                                type={node.type}
+                                label={node.label}
                             />
-                        );
-                    })}
-
-                    {/* Center Pulse */}
-                    <motion.circle
-                        cx="200"
-                        cy="200"
-                        r="20"
-                        fill="none"
-                        stroke="#6366f1"
-                        strokeWidth="3"
-                        animate={{
-                            r: [20, 80, 20],
-                            opacity: [1, 0, 1]
-                        }}
-                        transition={{
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                        }}
-                    />
-
-                    {/* Gradients */}
-                    <defs>
-                        <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#6366f1" />
-                            <stop offset="100%" stopColor="#a855f7" />
-                        </linearGradient>
-                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.6" />
-                            <stop offset="50%" stopColor="#a855f7" stopOpacity="0.8" />
-                            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.6" />
-                        </linearGradient>
-                    </defs>
-                </svg>
-
-                {/* Loading Text */}
-                <motion.div
-                    className="loading-text-container"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                >
-                    <h3 className="loading-title">Constructing Knowledge Graph</h3>
-                    <motion.p
-                        className="loading-subtitle"
-                        animate={{ opacity: [0.5, 1, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                    >
-                        Analyzing concepts and relationships...
-                    </motion.p>
-                </motion.div>
-
-                {/* Floating Particles */}
-                {[...Array(20)].map((_, i) => (
-                    <motion.div
-                        key={`particle-${i}`}
-                        className="floating-particle"
-                        style={{
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
-                        }}
-                        animate={{
-                            y: [0, -30, 0],
-                            opacity: [0, 1, 0],
-                            scale: [0, 1, 0]
-                        }}
-                        transition={{
-                            duration: 3 + Math.random() * 2,
-                            delay: Math.random() * 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                        }}
-                    />
-                ))}
+                        ))}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

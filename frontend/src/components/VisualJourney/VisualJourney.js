@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import NodeCard from './NodeCard';
+import ShapeNode from './ShapeNode';
 import ConnectionPath from './ConnectionPath';
 import { calculateVerticalLayout } from './utils/layoutAlgorithm';
 import './VisualJourney.css';
@@ -122,10 +123,17 @@ const VisualJourney = ({ graphData, onNodeClick, isDialogMode = false }) => {
                                 viewport={{ once: true, margin: "-100px" }}
                                 transition={{ duration: 0.8, delay: 0.1, type: "spring", stiffness: 40 }}
                             >
-                                <NodeCard
-                                    node={node}
-                                    onClick={() => handleNodeClick(node, index)}
-                                />
+                                {isDialogMode ? (
+                                    <ShapeNode
+                                        node={node}
+                                        onClick={() => handleNodeClick(node, index)}
+                                    />
+                                ) : (
+                                    <NodeCard
+                                        node={node}
+                                        onClick={() => handleNodeClick(node, index)}
+                                    />
+                                )}
                             </motion.div>
                         </div>
                     );

@@ -77,3 +77,35 @@ class SessionService:
             logger.info("Cleared query history.")
         except Exception as e:
             logger.error(f"Error clearing history: {e}")
+
+    def get_history_item(self, item_id: int):
+        """
+        Retrieve a specific history item by its ID.
+        """
+        try:
+            db = SessionLocal()
+            item = db.query(QueryHistory).filter(QueryHistory.id == item_id).first()
+            db.close()
+            return item
+        except Exception as e:
+            logger.error(f"Error retrieving history item {item_id}: {e}")
+            return None
+
+    def delete_history_item(self, item_id: int):
+        """
+        Delete a specific history item by its ID.
+        """
+        try:
+            db = SessionLocal()
+            db_item = db.query(QueryHistory).filter(QueryHistory.id == item_id).first()
+            if db_item:
+                db.delete(db_item)
+                db.commit()
+                db.close()
+                logger.info(f"Deleted history item: {item_id}")
+                return True
+            db.close()
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting history item {item_id}: {e}")
+            return False

@@ -5,10 +5,14 @@
     /* Use viewport units for perfect sizing */
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.6s cubic-bezier(0.2, 1, 0.3, 1);
+    /* GPU acceleration */
+    transform: translateZ(0);
+    will-change: opacity;
 }
 
 .concept-dialog-container {
@@ -23,6 +27,8 @@
     overflow: hidden;
     box-shadow: 0 60px 120px rgba(0, 0, 0, 0.9);
     position: relative;
+    /* GPU acceleration */
+    transform: translateZ(0);
 }
 
 /* Header V4-Deep */
@@ -182,6 +188,76 @@
     overflow-y: auto;
     overflow-x: hidden;
     /* Allow scrolling to see full graph */
+    /* GPU acceleration for smooth scrolling */
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* UNIQUE VERTICAL SNAKE SCROLLBAR for Mini-Graph */
+.mini-graph-container::-webkit-scrollbar {
+    width: 12px;
+}
+
+.mini-graph-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Snake thumb with gradient and wavy edges */
+.mini-graph-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg,
+            rgba(99, 102, 241, 0.8) 0%,
+            rgba(99, 102, 241, 0.6) 50%,
+            rgba(99, 102, 241, 0.8) 100%);
+    border-radius: 10px;
+    border: 2px solid rgba(11, 18, 32, 0.5);
+    box-shadow:
+        0 0 10px rgba(99, 102, 241, 0.4),
+        inset 0 0 6px rgba(255, 255, 255, 0.2);
+    /* Create wavy edges effect */
+    clip-path: polygon(0% 5%,
+            10% 0%,
+            20% 5%,
+            30% 0%,
+            40% 5%,
+            50% 0%,
+            60% 5%,
+            70% 0%,
+            80% 5%,
+            90% 0%,
+            100% 5%,
+            100% 95%,
+            90% 100%,
+            80% 95%,
+            70% 100%,
+            60% 95%,
+            50% 100%,
+            40% 95%,
+            30% 100%,
+            20% 95%,
+            10% 100%,
+            0% 95%);
+}
+
+.mini-graph-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg,
+            rgba(99, 102, 241, 1) 0%,
+            rgba(99, 102, 241, 0.8) 50%,
+            rgba(99, 102, 241, 1) 100%);
+    box-shadow:
+        0 0 16px rgba(99, 102, 241, 0.6),
+        inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.mini-graph-container::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg,
+            rgba(139, 92, 246, 1) 0%,
+            rgba(99, 102, 241, 1) 50%,
+            rgba(139, 92, 246, 1) 100%);
+    box-shadow:
+        0 0 20px rgba(99, 102, 241, 0.8),
+        inset 0 0 10px rgba(255, 255, 255, 0.4);
 }
 
 .graph-hint {
@@ -208,6 +284,96 @@
     flex: 1;
     overflow-y: auto;
     padding: 0 40px 40px 40px;
+    /* GPU acceleration for smooth scrolling */
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    contain: layout style paint;
+}
+
+/* UNIQUE VERTICAL SNAKE SCROLLBAR */
+.info-scroll-container::-webkit-scrollbar {
+    width: 14px;
+}
+
+.info-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+    position: relative;
+}
+
+/* Snake track background with wavy pattern */
+.info-scroll-container::-webkit-scrollbar-track::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 100%;
+    background: repeating-linear-gradient(0deg,
+            rgba(99, 102, 241, 0.2) 0px,
+            rgba(99, 102, 241, 0.1) 10px,
+            transparent 10px,
+            transparent 20px);
+    border-radius: 10px;
+}
+
+/* Snake thumb with gradient and animation */
+.info-scroll-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg,
+            rgba(99, 102, 241, 0.8) 0%,
+            rgba(99, 102, 241, 0.6) 50%,
+            rgba(99, 102, 241, 0.8) 100%);
+    border-radius: 10px;
+    border: 2px solid rgba(11, 18, 32, 0.5);
+    box-shadow:
+        0 0 10px rgba(99, 102, 241, 0.4),
+        inset 0 0 6px rgba(255, 255, 255, 0.2);
+    position: relative;
+    /* Create wavy edges effect */
+    clip-path: polygon(0% 5%,
+            10% 0%,
+            20% 5%,
+            30% 0%,
+            40% 5%,
+            50% 0%,
+            60% 5%,
+            70% 0%,
+            80% 5%,
+            90% 0%,
+            100% 5%,
+            100% 95%,
+            90% 100%,
+            80% 95%,
+            70% 100%,
+            60% 95%,
+            50% 100%,
+            40% 95%,
+            30% 100%,
+            20% 95%,
+            10% 100%,
+            0% 95%);
+}
+
+.info-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg,
+            rgba(99, 102, 241, 1) 0%,
+            rgba(99, 102, 241, 0.8) 50%,
+            rgba(99, 102, 241, 1) 100%);
+    box-shadow:
+        0 0 16px rgba(99, 102, 241, 0.6),
+        inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.info-scroll-container::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg,
+            rgba(139, 92, 246, 1) 0%,
+            rgba(99, 102, 241, 1) 50%,
+            rgba(139, 92, 246, 1) 100%);
+    box-shadow:
+        0 0 20px rgba(99, 102, 241, 0.8),
+        inset 0 0 10px rgba(255, 255, 255, 0.4);
 }
 
 /* Footer Section */

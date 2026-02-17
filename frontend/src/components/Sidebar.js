@@ -3,7 +3,7 @@ import { Upload, Send, Trash2, MessageCircle, History, FileText, Menu, RotateCcw
 import { useDropzone } from "react-dropzone";
 import Editor from "@monaco-editor/react";
 
-export default function Sidebar({
+function Sidebar({
   mode,
   generateGraph,
   generateGraphFromPDF,
@@ -11,6 +11,8 @@ export default function Sidebar({
   resetGraph,
   history,
   restoreFromHistory,
+  deleteHistoryItem,
+  onShowFullHistory,
   loading,
   isCollapsed,
   setIsCollapsed
@@ -35,6 +37,13 @@ export default function Sidebar({
   const handleClear = () => {
     setPdfFile(null);
     setCode("");
+  };
+
+  const handleDeleteHistory = (e, id) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this chat?")) {
+      deleteHistoryItem(id);
+    }
   };
 
   return (
@@ -190,6 +199,7 @@ export default function Sidebar({
           <div className="history-list" data-testid="history-list">
             {history
               .filter(item => item.mode === mode)
+              .slice(0, mode === 'query' ? 10 : undefined)
               .map((item) => (
                 <div
                   key={item.id}
@@ -197,21 +207,47 @@ export default function Sidebar({
                   onClick={() => restoreFromHistory(item)}
                   data-testid={`history-item-${item.id}`}
                 >
-                  <div className="history-preview-classic">{item.preview}</div>
-                  <div className="history-meta">
-                    <span className="history-mode-tag">{item.mode}</span>
-                    <span className="history-time">
-                      {new Date(item.timestamp).toLocaleTimeString()}
-                    </span>
+                  <div className="history-item-content">
+                    <div className="history-preview-classic">{item.preview}</div>
+                    <div className="history-meta">
+                      <span className="history-mode-tag">{item.mode}</span>
+                      <span className="history-time">
+                        {new Date(item.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
                   </div>
+                  {mode === 'query' && (
+                    <button
+                      className="delete-history-btn"
+                      onClick={(e) => handleDeleteHistory(e, item.id)}
+                      title="Delete History"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
-            {history.filter(item => item.mode === mode).length === 0 && (
+
+            {history.filter(item => item?.mode === mode).length === 0 && (
               <p className="empty-state">No history for this mode yet</p>
             )}
           </div>
+
+          {mode === 'query' && history.filter(item => item?.mode === 'query').length > 10 && (
+            <button
+              className="load-history-link"
+              onClick={(e) => {
+                console.log("Load History button clicked in Sidebar");
+                onShowFullHistory();
+              }}
+            >
+              Load History
+            </button>
+          )}
         </div>
       </div>
     </aside>
   );
 }
+
+export default React.memo(Sidebar);

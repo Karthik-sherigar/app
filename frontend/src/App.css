@@ -6,6 +6,14 @@
   box-sizing: border-box;
 }
 
+/* Enable adaptive refresh rate for high-refresh displays */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    /* Allow browser to use device's max refresh rate */
+    scroll-behavior: auto;
+  }
+}
+
 :root {
   --bg-primary: #0b1220;
   --bg-secondary: #111827;
@@ -23,6 +31,9 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
+  /* Enable high refresh rate rendering */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
 h1,
@@ -495,9 +506,111 @@ h4 {
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overflow-y: auto;
   flex: 1;
+  padding-right: 4px;
+  /* GPU acceleration for smooth scrolling */
+  will-change: scroll-position;
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* History Scrollbar */
+.history-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.history-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.history-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.history-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.delete-history-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-item:hover .delete-history-btn {
+  opacity: 1;
+}
+
+.delete-history-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.1);
+}
+
+.history-preview-classic {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-mode-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.history-time {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .empty-state {
@@ -595,6 +708,30 @@ h4 {
   }
 }
 
+.load-history-link {
+  background: transparent;
+  border: none;
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px;
+  text-align: center;
+  transition: all 0.2s;
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 8px;
+  display: block;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.load-history-link:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  transform: translateY(-1px);
+}
+
 .empty-icon {
   font-size: 64px;
   opacity: 0.3;
@@ -638,6 +775,9 @@ h4 {
   width: 100%;
   height: 100%;
   background: linear-gradient(180deg, #0b1220 0%, #0f1729 100%);
+  /* GPU acceleration for smooth pan/zoom */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .empty-graph {

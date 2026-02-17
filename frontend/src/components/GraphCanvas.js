@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
 import cytoscapeDagre from "cytoscape-dagre";
+import { motion, AnimatePresence } from "framer-motion";
 import "./GraphCanvas.css";
 import { Brain } from "lucide-react";
 import GraphLoadingAnimation from "./GraphLoadingAnimation";
@@ -8,18 +9,25 @@ import GraphLoadingAnimation from "./GraphLoadingAnimation";
 // Register plugins
 cytoscape.use(cytoscapeDagre);
 
-export default function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode, mode, loading }) {
+function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNode, mode, loading }) {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
   const layoutRef = useRef(null);
 
   // Init and Update in a single effect to handle Strict Mode correctness
   useEffect(() => {
-    if (!cyRef.current) return;
+    // Only init if we have nodes and the container is ready
+    if (!cyRef.current || graphData.nodes.length === 0) return;
 
     // Initialize Cytoscape
     cyInstance.current = cytoscape({
       container: cyRef.current,
+      // Enable adaptive refresh rate - no FPS cap
+      pixelRatio: 'auto',
+      motionBlur: false, // Disable for high refresh rates
+      textureOnViewport: true, // GPU texture rendering
+      hideEdgesOnViewport: false, // Keep edges visible for smoothness
+      hideLabelsOnViewport: false,
       style: [
         {
           selector: 'node',
@@ -341,15 +349,6 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphData]);
 
-  // Bind Events (Separate effect)
-  useEffect(() => {
-    if (!cyInstance.current || cyInstance.current.destroyed()) return;
-
-    const cy = cyInstance.current;
-    // Events are now bound in the main effect above
-
-  }, [onNodeClick]);
-
   // Handle selected node
   useEffect(() => {
     if (!cyInstance.current || cyInstance.current.destroyed()) return;
@@ -359,7 +358,7 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
       const node = cyInstance.current.getElementById(selectedNode.id);
       if (node && node.length > 0) {
         node.select();
-        cyInstance.current.stop(); // Stop potential previous animations
+        cyInstance.current.stop();
         cyInstance.current.animate({
           center: { eles: node },
           zoom: 1.5
@@ -379,7 +378,6 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
       const node = cyInstance.current.getElementById(externalSelectedNode);
       if (node && node.length > 0) {
         node.select();
-        // Zoom to node with animation
         cyInstance.current.stop();
         cyInstance.current.animate({
           center: { eles: node },
@@ -389,7 +387,6 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
           easing: 'ease-in-out'
         });
 
-        // Flash highlight effect
         const originalBorderColor = node.style('border-color');
         node.style('border-color', '#6366f1');
 
@@ -407,17 +404,41 @@ export default function GraphCanvas({ graphData, onNodeClick, selectedNode, exte
 
   return (
     <div className="graph-canvas" data-testid="graph-canvas">
-      {loading ? (
-        <GraphLoadingAnimation />
-      ) : graphData.nodes.length === 0 ? (
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            key="loader-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{ position: 'absolute', inset: 0, zIndex: 100 }}
+          >
+            <GraphLoadingAnimation mode={mode} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!loading && graphData.nodes.length === 0 ? (
         <div className="empty-graph" data-testid="empty-graph-state">
           <Brain size={64} className="empty-icon" />
           <h2>No Graph Yet</h2>
           <p>Enter a query, upload a PDF, or paste code to generate a knowledge graph</p>
         </div>
       ) : (
-        <div ref={cyRef} className="cy-container" data-testid="cytoscape-container" />
+        <motion.div
+          key="cy-container-wrapper"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: loading ? 0 : 1 }}
+          transition={{ duration: 0.5 }}
+          ref={cyRef}
+          className="cy-container"
+          data-testid="cytoscape-container"
+          style={{ width: '100%', height: '100%' }}
+        />
       )}
     </div>
   );
 }
+
+export default React.memo(GraphCanvas);

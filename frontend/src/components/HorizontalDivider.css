@@ -1,0 +1,53 @@
+.horizontal-divider-container {
+    width: 100%;
+    margin: 60px 0;
+    position: relative;
+}
+
+.divider-line-wrapper {
+    width: 100%;
+    height: 2px;
+    position: relative;
+    overflow: hidden;
+}
+
+.divider-gradient-line {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(99, 102, 241, 0.3) 10%,
+            rgba(99, 102, 241, 0.8) 50%,
+            rgba(99, 102, 241, 0.3) 90%,
+            transparent 100%);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+
+.divider-solid-line {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.divider-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 23, 42, 0.95);
+    padding: 8px 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.divider-text span {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}

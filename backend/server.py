@@ -91,24 +91,19 @@ async def explain_confusion_proxy(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history", response_model=List[HistoryItem])
-async def get_history():
-    history_records = session_service.get_history(limit=20)
+async def get_history(limit: int = 20, include_data: bool = True):
+    history_records = session_service.get_history(limit=limit)
     items = []
     for record in history_records:
         try:
-            stored_data = json.loads(record.answer)
-            node_ids = []
-            if "graph" in stored_data and "nodes" in stored_data["graph"]:
-                node_ids = [n["id"] for n in stored_data["graph"]["nodes"]]
+            response_data = None
+            if include_data and record.answer:
+                try:
+                    response_data = json.loads(record.answer)
+                except Exception as e:
+                    logging.error(f"Error parsing JSON for history {record.id}: {e}")
+                    response_data = {"text": record.answer}
             
-            live_graph = {"nodes": [], "edges": []}
-            if node_ids:
-                live_graph = neo4j_service.get_subgraph_by_ids(node_ids)
-            
-            final_graph = live_graph if live_graph["nodes"] else stored_data.get("graph", {"nodes": [], "edges": []})
-            response_data = stored_data
-            response_data["graph"] = final_graph
-
             items.append({
                 "id": str(record.id),
                 "query": record.query,
@@ -118,9 +113,47 @@ async def get_history():
                 "response_data": response_data
             })
         except Exception as e:
-            logging.error(f"Error processing history item {record.id}: {e}")
-            continue
+            logging.error(f"Error processing history record {record.id}: {e}")
     return items
+
+@app.get("/api/history/{id}", response_model=HistoryItem)
+async def get_history_detail(id: int):
+    record = session_service.get_history_item(id)
+    if not record:
+        raise HTTPException(status_code=404, detail="History not found")
+    
+    try:
+        response_data = json.loads(record.answer)
+        return {
+            "id": str(record.id),
+            "query": record.query,
+            "mode": getattr(record, 'mode', 'query'),
+            "timestamp": record.timestamp.isoformat() + "Z" if record.timestamp.tzinfo is None else record.timestamp.isoformat(),
+            "preview": record.query[:50] + "..." if len(record.query) > 50 else record.query,
+            "response_data": response_data
+        }
+    except Exception as e:
+        logging.error(f"Error processing history item {id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process history data")
+
+@app.delete("/api/history/{item_id}")
+async def delete_history_item(item_id: int):
+    success = session_service.delete_history_item(item_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="History item not found")
+    return {"message": "History item deleted"}
+
+@app.post("/api/explain-node")
+async def explain_node_proxy(request: Request):
+    """Proxy endpoint for detailed node explanations"""
+    try:
+        body = await request.json()
+        target_url = f"{QUERY_SERVER_URL}/api/explain-node"
+        response = await client.post(target_url, json=body, timeout=30.0)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Proxy error (explain-node): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")
 async def health_check():

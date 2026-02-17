@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "@/App.css";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import GraphCanvas from "./components/GraphCanvas";
+import OrganicTreeGraph from "./components/OrganicTreeGraph";
 import VisualJourney from "./components/VisualJourney/VisualJourney";
-import ConceptExplorationDialog from "./components/VisualJourney/ConceptExplorationDialog";
 import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
 import ProgrammingView from "./components/ProgrammingView";
 import BottomInputBar from "./components/BottomInputBar";
+import HistoryDialog from "./components/HistoryDialog";
+import "./components/HistoryDialog.css";
 import { Toaster, toast } from "sonner";
 import { MessageSquare, X } from "lucide-react";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -35,6 +38,25 @@ function App() {
   const [programmingCode, setProgrammingCode] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [hasNewResponse, setHasNewResponse] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const fetchFullHistory = async () => {
+    if (historyLoading) return;
+    console.log("Fetching full history...");
+    setShowHistoryDialog(true);
+    setHistoryLoading(true);
+    try {
+      const response = await axios.get(`${API}/history?limit=100&include_data=false`);
+      console.log("Full history received:", response.data);
+      setHistory(response.data);
+    } catch (e) {
+      console.error("Failed to load full history:", e);
+      toast.error("Failed to load full history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   // Exploration Stack for Deep-Dives
   const [explorationStack, setExplorationStack] = useState([]); // [{ concept, data, graph, index, siblings }]
@@ -116,23 +138,23 @@ function App() {
     clearExploration();
   }, [mode]);
 
-  const checkBackendHealth = async () => {
+  const checkBackendHealth = useCallback(async () => {
     try {
       await axios.get(`${API}/health`);
       setBackendStatus("connected");
     } catch (e) {
       setBackendStatus("error");
     }
-  };
+  }, []);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/history`);
       setHistory(response.data);
     } catch (e) {
       console.error("Failed to fetch history:", e);
     }
-  };
+  }, []);
 
   const generateGraph = async (query, selectedMode) => {
     setLoading(true);
@@ -235,14 +257,14 @@ function App() {
     }
   };
 
-  const resetGraph = () => {
+  const resetGraph = useCallback(() => {
     setGraphData({ nodes: [], edges: [] });
     setSelectedNode(null);
     setShowNodePanel(false);
     setShowExplanation(false);
     clearExploration();
     toast.info("Map cleared.");
-  };
+  }, []);
 
   const handleNodeClick = React.useCallback((node, index = null, siblings = null) => {
     if (mode === 'query') {
@@ -270,16 +292,42 @@ function App() {
     }
   };
 
-  const restoreFromHistory = (historyItem) => {
-    if (historyItem.response_data) {
-      const data = historyItem.response_data;
-      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
-      setGraphData(normalizedData);
-      setMode(historyItem.mode);
-      if (!showChat) {
-        setHasNewResponse(true);
+  const restoreFromHistory = async (historyItem) => {
+    try {
+      let dataToRestore = historyItem.response_data;
+
+      // If data is missing (lite record), fetch it now
+      if (!dataToRestore) {
+        setLoading(true);
+        const response = await axios.get(`${API}/history/${historyItem.id}`);
+        dataToRestore = response.data.response_data;
+        setLoading(false);
       }
-      toast.success("Expedition history restored.");
+
+      if (dataToRestore) {
+        const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
+        setGraphData(normalizedData);
+        setMode(historyItem.mode);
+        if (!showChat) {
+          setHasNewResponse(true);
+        }
+        toast.success("Expedition history restored.");
+      }
+    } catch (e) {
+      console.error("Restoration failed:", e);
+      setLoading(false);
+      toast.error("Failed to restore history.");
+    }
+  };
+
+  const deleteHistoryItem = async (id) => {
+    try {
+      await axios.delete(`${API}/history/${id}`);
+      setHistory(prev => prev.filter(item => item.id !== id));
+      toast.success("Chat history removed.");
+    } catch (e) {
+      toast.error("Failed to delete history item.");
+      console.error(e);
     }
   };
 
@@ -309,6 +357,8 @@ function App() {
           resetGraph={resetGraph}
           history={history}
           restoreFromHistory={restoreFromHistory}
+          deleteHistoryItem={deleteHistoryItem}
+          onShowFullHistory={fetchFullHistory}
           loading={loading}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
@@ -319,13 +369,6 @@ function App() {
           data-testid="main-workspace"
           style={{ position: 'relative' }}
         >
-          {loading && (
-            <div className="loading-overlay" data-testid="loading-indicator">
-              <div className="spinner"></div>
-              <p>Mapping Knowledge Expedition...</p>
-              <p className="loading-sub">Scanning Conceptual Nodes...</p>
-            </div>
-          )}
 
           {mode === 'programming' ? (
             <ProgrammingView
@@ -338,20 +381,20 @@ function App() {
               selectedNode={selectedNode}
               externalSelectedNode={externalSelectedNode}
             />
-          ) : graphData.nodes.length > 0 ? (
+          ) : (loading || graphData.nodes.length > 0) ? (
             <>
               <AnimatePresence>
-                {mode === 'query' && showChat && (
+                {showChat && (
                   <motion.div
-                    className="chat-overlay-container"
-                    initial={{ x: "100%", opacity: 0 }}
+                    className="floating-chat-panel"
+                    initial={{ x: 400, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: "100%", opacity: 0 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                    exit={{ x: 400, opacity: 0 }}
+                    transition={{ type: "spring", damping: 25 }}
                   >
-                    <div className="chat-panel-header">
-                      <h3>Analysis</h3>
-                      <button className="chat-close-btn" onClick={() => setShowChat(false)}>
+                    <div className="chat-header">
+                      <h3>AI Analysis</h3>
+                      <button onClick={() => setShowChat(false)} className="close-chat-btn">
                         <X size={20} />
                       </button>
                     </div>
@@ -367,10 +410,14 @@ function App() {
                 )}
               </AnimatePresence>
 
+              {/* Main Graph Visualization */}
               {mode === 'query' ? (
-                <VisualJourney
+                <OrganicTreeGraph
                   graphData={graphData}
                   onNodeClick={handleNodeClick}
+                  selectedNode={externalSelectedNode}
+                  mode={mode}
+                  loading={loading}
                 />
               ) : (
                 <GraphCanvas
@@ -404,6 +451,7 @@ function App() {
               <p>Enter a query to map your learning path<br />or upload a data source.</p>
             </div>
           )}
+
         </main>
 
         {mode === "query" && (
@@ -438,28 +486,31 @@ function App() {
 
       <Toaster position="bottom-right" theme="dark" />
 
-      {/* Concept Deep-Dive Expedition Stack */}
+
+
       <AnimatePresence>
-        {explorationStack.map((entry, index) => (
-          <ConceptExplorationDialog
-            key={index}
-            concept={entry.concept}
-            data={entry.data}
-            subgraph={entry.graph}
-            index={index}
-            total={explorationStack.length}
-            onClose={clearExploration}
-            onBack={popExploration}
-            onNext={() => navigateSibling('next')}
-            onPrev={() => navigateSibling('prev')}
-            canGoBack={index > 0 || (entry.siblings && entry.index > 0)}
-            canGoNext={entry.siblings && entry.index < entry.siblings.length - 1}
-            onDeepDive={(node) => pushExploration(node, null, entry.graph.nodes)}
+        {showHistoryDialog && (
+          <HistoryDialog
+            isOpen={showHistoryDialog}
+            onClose={() => setShowHistoryDialog(false)}
+            history={history}
+            onRestore={restoreFromHistory}
+            onDelete={deleteHistoryItem}
+            mode={mode}
+            isLoading={historyLoading}
           />
-        ))}
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
-export default App;
+function AppWrapper() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+export default AppWrapper;

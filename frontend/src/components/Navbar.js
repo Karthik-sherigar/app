@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Brain, Sun, Moon, RotateCcw } from "lucide-react";
 
-export default function Navbar({ mode, setMode, backendStatus, resetGraph, theme, setTheme }) {
+function Navbar({ mode, setMode, backendStatus, resetGraph, theme, setTheme }) {
   const modes = [
     { id: "query", label: "Query Mode" },
     { id: "pdf", label: "PDF Mode" },
@@ -26,7 +26,7 @@ export default function Navbar({ mode, setMode, backendStatus, resetGraph, theme
           >
             {m.label}
             {mode === m.id && (
-              <motion.div 
+              <motion.div
                 className="mode-underline"
                 layoutId="underline"
                 transition={{ duration: 0.2 }}
@@ -37,23 +37,23 @@ export default function Navbar({ mode, setMode, backendStatus, resetGraph, theme
       </div>
 
       <div className="navbar-right">
-        <div 
+        <div
           className={`status-indicator ${backendStatus}`}
           data-testid="backend-status"
           title={backendStatus}
         >
           <span className="status-dot"></span>
         </div>
-        
-        <button 
+
+        <button
           className="icon-btn"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           data-testid="theme-toggle-btn"
         >
           {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
         </button>
-        
-        <button 
+
+        <button
           className="icon-btn"
           onClick={resetGraph}
           data-testid="reset-workspace-btn"
@@ -64,3 +64,5 @@ export default function Navbar({ mode, setMode, backendStatus, resetGraph, theme
     </nav>
   );
 }
+
+export default React.memo(Navbar);
