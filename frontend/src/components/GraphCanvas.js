@@ -1,9 +1,9 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import cytoscapeDagre from "cytoscape-dagre";
 import { motion, AnimatePresence } from "framer-motion";
 import "./GraphCanvas.css";
-import { Brain } from "lucide-react";
+import { Brain, ZoomIn, ZoomOut, Maximize, RefreshCw } from "lucide-react";
 import GraphLoadingAnimation from "./GraphLoadingAnimation";
 
 // Register plugins
@@ -13,6 +13,26 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
   const layoutRef = useRef(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  const handleZoomIn = () => {
+    if (cyInstance.current) {
+      cyInstance.current.zoom(cyInstance.current.zoom() * 1.2);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (cyInstance.current) {
+      cyInstance.current.zoom(cyInstance.current.zoom() * 0.8);
+    }
+  };
+
+  const handleFit = () => {
+    if (cyInstance.current) {
+      cyInstance.current.fit();
+      cyInstance.current.center();
+    }
+  };
 
   // Init and Update in a single effect to handle Strict Mode correctness
   useEffect(() => {
@@ -132,12 +152,60 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
         { selector: 'edge[label="CALLS"]', style: { 'line-style': 'dashed', 'line-color': '#10b981', 'target-arrow-color': '#10b981' } },
         { selector: 'edge[label="CONTAINS"]', style: { 'line-style': 'dotted', 'line-color': '#94a3b8', 'target-arrow-shape': 'none', 'width': 1 } }
       ],
-      minZoom: 0.3,
-      maxZoom: 3,
-      wheelSensitivity: 0.2
+      minZoom: 0.1,
+      maxZoom: 5,
+      wheelSensitivity: 0.15,
+      userZoomingEnabled: mode === 'programming' ? false : true // Only handle manually in Programming Mode
     });
 
     const cy = cyInstance.current;
+
+    // Handle manual wheel events for Panning vs Zooming (Isolated to Programming Mode)
+    const handleWheel = (e) => {
+      if (mode !== 'programming') return;
+
+      e.preventDefault();
+      if (!cy || cy.destroyed()) return;
+
+      if (e.ctrlKey) {
+        // Zooming (Pinch-to-zoom or Ctrl+Scroll)
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const currentZoom = cy.zoom();
+        const newZoom = currentZoom * zoomFactor;
+
+        if (newZoom >= cy.minZoom() && newZoom <= cy.maxZoom()) {
+          const pointer = { x: e.offsetX, y: e.offsetY };
+          cy.zoom({
+            level: newZoom,
+            renderedPosition: pointer
+          });
+        }
+      } else {
+        // Panning (Two-finger scroll)
+        const viewportWidth = cy.width();
+        const viewportHeight = cy.height();
+
+        const limitX = viewportWidth * 1.5;
+        const limitY = viewportHeight * 1.5;
+
+        const currentPan = cy.pan();
+        let nextX = currentPan.x - e.deltaX;
+        let nextY = currentPan.y - e.deltaY;
+
+        nextX = Math.max(-limitX, Math.min(limitX, nextX));
+        nextY = Math.max(-limitY, Math.min(limitY, nextY));
+
+        cy.pan({
+          x: nextX,
+          y: nextY
+        });
+      }
+    };
+
+    const container = cyRef.current;
+    if (container && mode === 'programming') {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+    }
 
     // Add elements
     const elements = [
@@ -283,16 +351,16 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
       const layoutOptions = mode === 'programming' ? {
         name: 'dagre',
         rankDir: 'TB',
-        nodeSep: 80,
-        rankSep: 150,
-        padding: 40,
+        nodeSep: 150, // Increased spacing
+        rankSep: 250, // Increased spacing
+        padding: 50,
         fit: true,
         animate: shouldAnimate,
         animationDuration: 500
       } : mode === 'query' ? {
         name: 'breadthfirst',
         directed: true,
-        spacingFactor: 1.5,
+        spacingFactor: 1.8, // Increased spacing
         padding: 50,
         animate: shouldAnimate,
         animationDuration: 800,
@@ -311,6 +379,29 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
         fit: true
       };
 
+      layoutOptions.stop = () => {
+        if (!cy || cy.destroyed()) return;
+
+        // 1. Initial fit
+        cy.fit(cy.elements(), 80);
+
+        // 2. Prevent "Too Small" syndrome: If zoom is tiny, bump it up and re-center
+        const currentZoom = cy.zoom();
+        if (currentZoom < 0.5) {
+          cy.animate({
+            zoom: 0.7,
+            center: { eles: cy.elements() }
+          }, {
+            duration: 800,
+            easing: 'ease-out-cubic'
+          });
+        } else {
+          cy.center();
+        }
+
+        setZoomLevel(cy.zoom());
+      };
+
       layoutRef.current = cy.layout(layoutOptions);
       layoutRef.current.run();
     });
@@ -318,6 +409,10 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
     // Cleanup
     return () => {
       cancelAnimationFrame(runLayout);
+
+      if (container) {
+        container.removeEventListener('wheel', handleWheel);
+      }
 
       // Destroy all tooltips
       if (cy && !cy.destroyed()) {
@@ -418,6 +513,20 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
           </motion.div>
         )}
       </AnimatePresence>
+
+      {mode === 'programming' && (
+        <div className="graph-zoom-controls">
+          <button className="zoom-btn" onClick={handleZoomIn} title="Zoom In">
+            <ZoomIn size={18} />
+          </button>
+          <button className="zoom-btn" onClick={handleZoomOut} title="Zoom Out">
+            <ZoomOut size={18} />
+          </button>
+          <button className="zoom-btn" onClick={handleFit} title="Fit Content">
+            <Maximize size={18} />
+          </button>
+        </div>
+      )}
 
       {!loading && graphData.nodes.length === 0 ? (
         <div className="empty-graph" data-testid="empty-graph-state">
