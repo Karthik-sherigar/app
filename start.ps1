@@ -29,11 +29,18 @@ if (-not (Test-Path "venv")) {
 Write-Host "Checking backend dependencies..."
 pip install -r requirements.txt
 
-# Start uvicorn in a NEW window
+# Start uvicorn gateway in a NEW window
+Write-Host "🚀 Starting Root Gateway (8000)..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn server:app --reload --host 0.0.0.0 --port 8000"
 
-# Wait for backend
-Start-Sleep -Seconds 2
+# Start sub-servers in separate windows
+Write-Host "🚀 Starting Mode Servers (8001, 8002, 8003)..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn query_server:app --reload --host 0.0.0.0 --port 8001"
+Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn pdf_server:app --reload --host 0.0.0.0 --port 8002"
+Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn programming_server:app --reload --host 0.0.0.0 --port 8003"
+
+# Wait for backend services to initialize
+Start-Sleep -Seconds 5
 
 # --- Frontend Setup ---
 Write-Host "🚀 Preparing Frontend (Port 3000)..." -ForegroundColor Green
