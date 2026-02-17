@@ -9,7 +9,8 @@ import re
 from shared import (
     QueryRequest, CodeExecutionRequest,
     neo4j_service, session_service,
-    generate_with_fallback, validate_and_normalize_graph
+    generate_with_fallback, validate_and_normalize_graph,
+    extract_json
 )
 
 app = FastAPI()
@@ -39,24 +40,35 @@ DO NOT create nodes for every variable or print statement. Instead, focus on the
 CODE TO ANALYZE:
 {request.query}
 
-Format as JSON with:
-- "answer": A clear, step-by-step summary of how the code executes.
-- "sections": Detailed breakdown of components.
-- "graph": Nodes and Edges.
-  - Node Types: "Component" (structural), "LogicPhase" (process block), "Decision" (if/else), "DataStore" (main variables/db).
-  - Relations: "FLOWS_TO" (sequence), "CALLS" (function calls), "CONTAINS" (hierarchy).
+Format as JSON with this exact structure:
+{{
+  "answer": "A clear, step-by-step summary...",
+  "sections": {{ "overview": "...", "phases": [...] }},
+  "graph": {{
+    "nodes": [
+      {{ "id": "slug", "label": "Name", "type": "LogicPhase", "description": "...", "importance": "high" }}
+    ],
+    "edges": [
+      {{ "source": "slug1", "target": "slug2", "relation": "FLOWS_TO" }}
+    ]
+  }}
+}}
+
+Node Types: "Component" (structural), "LogicPhase" (process block), "Decision" (if/else), "DataStore" (main variables/db), "Entry" (start point).
+Relations: "FLOWS_TO" (sequence), "CALLS" (function calls), "CONTAINS" (hierarchy).
+
+CRITICAL REQUIREMENTS:
+1. Use UNIQUE, concept-based string IDs for nodes (e.g., "module_init", "loop_check") instead of integers.
+2. Ensure ALL nodes are connected by at least one relation to show a complete logic flow.
+3. Every LogicPhase MUST have a FLOWS_TO relation to the next phase/node.
 
 Create 8-12 meaningful nodes that explain the code flow. Return ONLY valid JSON."""
 
+
         response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+        logging.info(f"LLM Response received: {response_text[:100]}...")
         
-        response_text = response_text.strip()
-        if "```json" in response_text:
-            response_text = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            response_text = response_text.split("```")[1].split("```")[0].strip()
-        
-        graph_data = json.loads(response_text)
+        graph_data = extract_json(response_text)
         graph_data = validate_and_normalize_graph(graph_data)
 
         if "graph" in graph_data:
@@ -69,6 +81,7 @@ Create 8-12 meaningful nodes that explain the code flow. Return ONLY valid JSON.
     except Exception as e:
         logging.error(f"Programming generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/execute-code")
 async def execute_code(request: CodeExecutionRequest):
