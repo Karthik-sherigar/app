@@ -298,13 +298,15 @@ export default function ProgrammingView({
                                 </button>
                             </div>
                             <div className="modal-body">
-                                <GraphCanvas
-                                    graphData={graphData}
-                                    onNodeClick={onNodeClick}
-                                    selectedNode={selectedNode}
-                                    externalSelectedNode={externalSelectedNode}
-                                    mode="programming"
-                                />
+                                <div className="fullscreen-graph-container">
+                                    <GraphCanvas
+                                        graphData={graphData}
+                                        onNodeClick={onNodeClick}
+                                        selectedNode={selectedNode}
+                                        externalSelectedNode={externalSelectedNode}
+                                        mode="programming"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </motion.div>
