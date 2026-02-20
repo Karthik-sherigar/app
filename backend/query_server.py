@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import asyncio
 import json
 from shared import (
-    QueryRequest, ExpandNodeRequest, ExplainRequest, 
+    QueryRequest, ExpandNodeRequest, ExplainRequest, AskNodeRequest,
     neo4j_service, session_service,
     _generate_with_gemini_internal, generate_with_fallback, generate_with_groq, generate_with_cohere,
     api_keys, extract_json, validate_and_normalize_graph
@@ -79,53 +79,77 @@ Return ONLY a JSON array of strings: {{"visual_prompts": ["cybernetic neural net
 
         async def run_parallel():
             async def get_graph():
+                # Graph Priority: Groq -> Gemini -> Cohere
+                last_error = None
+                
+                # 1. Groq
+                try:
+                    resp = await generate_with_groq(graph_prompt, json_mode=True)
+                    if resp: return resp
+                except Exception as e:
+                    logging.warning(f"Groq graph generation failed: {e}")
+                    last_error = e
+
+                # 2. Gemini
                 try:
                     return await _generate_with_gemini_internal('gemini-2.0-flash', graph_prompt, forced_key_index=0)
                 except Exception as e:
-                    logging.warning(f"Gemini failed for graph: {e}")
-                    try:
-                        resp = await generate_with_groq(graph_prompt)
-                        if resp: return resp
-                    except: pass
-                    try:
-                        resp = await generate_with_cohere(graph_prompt)
-                        if resp: return resp
-                    except: pass
-                    raise e
+                    logging.warning(f"Gemini graph generation failed: {e}")
+                    last_error = e
+
+                # 3. Cohere
+                try:
+                    resp = await generate_with_cohere(graph_prompt)
+                    if resp: return resp
+                except Exception as e:
+                    logging.warning(f"Cohere graph generation failed: {e}")
+                    last_error = e
+                
+                # All failed
+                raise HTTPException(status_code=503, detail=f"Failed to generate graph. All AI providers failed. Last error: {str(last_error)}")
             
             async def get_visuals():
+                # Visuals can default to Gemini as it's good for lists
                 key_index = 1 if len(api_keys) > 1 else 0
                 try:
                     return await _generate_with_gemini_internal('gemini-2.0-flash', visual_prompt, forced_key_index=key_index)
                 except:
-                    return json.dumps({"visual_prompts": []})
+                   # Fallback visuals
+                   return '{"visual_prompts": []}'
 
-            g_task = asyncio.create_task(get_graph())
-            await asyncio.sleep(2.0)
-            v_task = asyncio.create_task(get_visuals())
-            return await asyncio.gather(g_task, v_task)
+            return await asyncio.gather(get_graph(), get_visuals())
 
-        graph_resp, visual_resp = await run_parallel()
-        graph_data = extract_json(graph_resp)
-        visual_data = {}
-        try: visual_data = extract_json(visual_resp)
-        except: pass
-
-        graph_data = validate_and_normalize_graph(graph_data)
-        prompts = visual_data.get("visual_prompts", [])
-        if prompts and "graph" in graph_data:
-            for i, node in enumerate(graph_data["graph"]["nodes"]):
-                node["image_prompt"] = prompts[i % len(prompts)]
+        raw_response, visuals_response = await run_parallel()
         
-        # Save to DBs
-        if "graph" in graph_data:
-            if graph_data["graph"]["nodes"]: neo4j_service.insert_nodes(graph_data["graph"]["nodes"])
-            if graph_data["graph"]["edges"]: neo4j_service.insert_relationships(graph_data["graph"]["edges"])
-        session_service.save_query_history(request.query, json.dumps(graph_data), mode=request.mode)
+        # ... processing logic remains same ...
+        result = extract_json(raw_response)
         
-        return graph_data
+        # Merge visuals
+        try:
+             vis_data = extract_json(visuals_response)
+             if "visual_prompts" in vis_data:
+                 result["visual_prompts"] = vis_data["visual_prompts"]
+        except:
+             pass
+
+        # Validate and insert into Neo4j
+        result = validate_and_normalize_graph(result)
+        
+        if "nodes" in result["graph"]:
+             neo4j_service.insert_nodes(result["graph"]["nodes"])
+        if "edges" in result["graph"]:
+             neo4j_service.insert_relationships(result["graph"]["edges"])
+
+        history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode)
+        if history_item:
+            result["historyId"] = history_item.id
+        
+        return result
+
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        logging.error(f"Query generation error: {e}")
+        logging.error(f"Graph generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/expand-node")
@@ -135,7 +159,31 @@ async def expand_node(request: ExpandNodeRequest):
 Current context: {len(request.current_graph.nodes)} existing nodes
 Create 5-8 new related nodes.
 Return ONLY valid JSON with "nodes" and "edges" lists."""
-        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+        
+        # Expansion Priority: Groq -> Gemini -> Cohere
+        response_text = None
+        last_error = None
+        
+        try:
+            response_text = await generate_with_groq(prompt, json_mode=True)
+        except Exception as e:
+            last_error = e
+        
+        if not response_text:
+            try:
+                response_text = await _generate_with_gemini_internal('gemini-2.0-flash', prompt)
+            except Exception as e:
+                last_error = e
+        
+        if not response_text:
+             try:
+                 response_text = await generate_with_cohere(prompt)
+             except Exception as e:
+                 last_error = e
+                 
+        if not response_text:
+            raise HTTPException(status_code=503, detail=f"Expansion failed. All AI providers unavailable. Last error: {str(last_error)}")
+
         result = extract_json(response_text)
         if "nodes" in result:
              for n in result["nodes"]: n["id"] = str(n.get("id"))
@@ -157,78 +205,229 @@ async def explain_confusion(request: ExplainRequest):
 {"Focus on: " + request.confusion if request.confusion else ""}
 Provide: Simple explanation, Analogy, Steps.
 Format as JSON."""
-        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+        # Use Groq first for explanations
+        response_text = None
+        try:
+             response_text = await generate_with_groq(prompt, json_mode=True)
+        except:
+             pass
+        
+        if not response_text:
+             response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+             
         return extract_json(response_text)
     except Exception as e:
         logging.error(f"Explanation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/explain-node")
-async def explain_node(request: dict):
+async def explain_node(request: Request):
     try:
-        node_id = request.get("nodeId", "")
-        node_label = request.get("nodeLabel", "")
-        context = request.get("context", "")
-        
-        prompt = f"""Generate a comprehensive, detailed explanation for the concept: "{node_label}"
+        body = await request.json()
+        node_id = body.get("nodeId", "")
+        node_label = body.get("nodeLabel", "") or body.get("nodeName", "")
+        context = body.get("context", "")
+        wiki_slug = node_label.replace(' ', '_')
+        google_img_base = f"https://www.google.com/search?tbm=isch&q={node_label.replace(' ', '+')}"
+
+        prompt = f"""You are an expert educator. Generate a comprehensive, structured explanation for the concept: "{node_label}"
 Context: {context}
 
-Provide a rich, educational explanation with:
-1. A brief overview (2-3 sentences)
-2. Detailed explanation (3-4 paragraphs covering key aspects, real-world applications, and technical details)
-3. 5-7 key points or takeaways
-4. Suggest 2-3 relevant images with actual URLs (diagrams, infographics, or illustrations from educational sites)
-5. Suggest 2-3 educational YouTube videos with actual embed URLs
-6. Provide 3-5 external resources (Wikipedia, documentation, articles) with descriptions
-
-Return ONLY valid JSON in this EXACT format:
+Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
 {{
   "title": "{node_label}",
-  "explanation": {{
-    "overview": "Brief 2-3 sentence overview explaining what this concept is and why it matters...",
-    "details": [
-      "First detailed paragraph covering fundamental concepts and definitions...",
-      "Second detailed paragraph explaining how it works or its core mechanisms...",
-      "Third detailed paragraph discussing real-world applications and use cases...",
-      "Fourth detailed paragraph on advanced aspects or future directions..."
-    ],
-    "keyPoints": [
-      "Key point 1: Most important takeaway",
-      "Key point 2: Critical concept to remember",
-      "Key point 3: Practical application",
-      "Key point 4: Common misconception clarified",
-      "Key point 5: Future implications"
+  "textResponse": {{
+    "overview": "A clear, engaging 2-3 sentence overview of what {node_label} is and why it matters.",
+    "sections": [
+      {{
+        "heading": "What is {node_label}?",
+        "content": "A detailed paragraph (4-6 sentences) explaining the fundamental definition, origin, and core idea.",
+        "bullets": []
+      }},
+      {{
+        "heading": "How It Works",
+        "content": "A detailed paragraph explaining the core mechanism, process, or architecture.",
+        "bullets": [
+          "Key mechanism or step 1 with brief explanation",
+          "Key mechanism or step 2 with brief explanation",
+          "Key mechanism or step 3 with brief explanation"
+        ]
+      }},
+      {{
+        "heading": "Real-World Applications",
+        "content": "A paragraph describing where and how this concept is applied in practice.",
+        "bullets": [
+          "Application 1: specific real-world use case",
+          "Application 2: specific real-world use case",
+          "Application 3: specific real-world use case"
+        ]
+      }},
+      {{
+        "heading": "Key Takeaways",
+        "content": "",
+        "bullets": [
+          "Most important insight about {node_label}",
+          "Critical concept or principle to remember",
+          "Common misconception clarified",
+          "Future direction or emerging trend",
+          "Practical tip for understanding or applying this concept"
+        ]
+      }}
     ]
   }},
-  "media": [
-    {{"url": "https://example.com/image1.jpg", "caption": "Descriptive caption explaining what the image shows"}},
-    {{"url": "https://example.com/image2.jpg", "caption": "Another relevant diagram or infographic"}}
+  "externalLinks": [
+    {{
+      "title": "Wikipedia — {node_label}",
+      "url": "https://en.wikipedia.org/wiki/{wiki_slug}",
+      "description": "The comprehensive Wikipedia article covering the history, theory, and detailed technical aspects of {node_label}. A great starting point for deep research."
+    }},
+    {{
+      "title": "Relevant tutorial or course (provide a real URL)",
+      "url": "https://www.coursera.org/search?query={node_label.replace(' ', '+')}",
+      "description": "Online courses and structured learning paths covering {node_label} from beginner to advanced level, with hands-on projects and certificates."
+    }},
+    {{
+      "title": "Research papers and academic resources",
+      "url": "https://scholar.google.com/scholar?q={node_label.replace(' ', '+')}",
+      "description": "Academic papers, research articles, and scholarly publications on {node_label}. Ideal for understanding the scientific and theoretical foundations."
+    }},
+    {{
+      "title": "Official documentation or authoritative source (provide a real URL if known)",
+      "url": "https://www.google.com/search?q={node_label.replace(' ', '+')}+official+documentation",
+      "description": "Official documentation, specifications, or authoritative reference material for {node_label}. Best for technical accuracy and implementation details."
+    }}
+  ],
+  "images": [
+    {{
+      "title": "{node_label} — Architecture Diagram",
+      "googleSearchUrl": "{google_img_base}+architecture+diagram",
+      "description": "Visual diagrams showing the structural architecture and component relationships of {node_label}. Helpful for understanding how the parts fit together."
+    }},
+    {{
+      "title": "{node_label} — Infographic Overview",
+      "googleSearchUrl": "{google_img_base}+infographic+explained",
+      "description": "Infographics and visual summaries that explain {node_label} concepts in an easy-to-understand visual format. Great for quick comprehension."
+    }},
+    {{
+      "title": "{node_label} — Real-World Examples",
+      "googleSearchUrl": "{google_img_base}+real+world+example",
+      "description": "Photographs and illustrations showing {node_label} in real-world contexts and practical applications."
+    }},
+    {{
+      "title": "{node_label} — Step-by-Step Process",
+      "googleSearchUrl": "{google_img_base}+step+by+step+process+flowchart",
+      "description": "Flowcharts and step-by-step visual guides illustrating how {node_label} works as a process or workflow."
+    }}
   ],
   "videos": [
-    {{"embedUrl": "https://www.youtube.com/embed/VIDEO_ID", "title": "Educational video title explaining the concept"}},
-    {{"embedUrl": "https://www.youtube.com/embed/VIDEO_ID2", "title": "Another relevant tutorial or explanation"}}
-  ],
-  "externalLinks": [
-    {{"title": "Wikipedia - {node_label}", "url": "https://en.wikipedia.org/wiki/{node_label.replace(' ', '_')}", "description": "Comprehensive encyclopedia entry with history and detailed information"}},
-    {{"title": "Official Documentation", "url": "https://example.com/docs", "description": "Official technical documentation and API reference"}},
-    {{"title": "Tutorial Article", "url": "https://example.com/tutorial", "description": "Step-by-step guide with practical examples"}}
+    {{
+       "title": "{node_label} Explained - Video Tutorial",
+       "embedUrl": "https://www.youtube.com/embed/???",
+       "description": "A high-quality educational video explaining {node_label}."
+    }}
   ]
-}}
+}}"""
 
-IMPORTANT: 
-- Use REAL, working URLs for images (from Wikimedia Commons, educational sites, or public domain sources)
-- Use REAL YouTube embed URLs in format: https://www.youtube.com/embed/VIDEO_ID
-- Provide actual, clickable external links (Wikipedia, official docs, reputable educational sites)
-- Make descriptions helpful and specific
-- Ensure all JSON is valid and properly formatted
+        explanation = None
+        last_error = None
 
-Return ONLY the JSON object, no additional text."""
+        # Priority 1: Gemini (Fastest)
+        try:
+            explanation = await _generate_with_gemini_internal("gemini-1.5-flash", prompt)
+        except Exception as e:
+             logging.warning(f"Gemini explain failed: {e}")
+             last_error = e
 
-        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
-        result = extract_json(response_text)
+        # Priority 2: Cohere (Fast)
+        if not explanation:
+            try:
+                explanation = await generate_with_cohere(prompt)
+            except Exception as e:
+                logging.warning(f"Cohere explain failed: {e}")
+                last_error = e
+
+        # Priority 3: Groq (Rate limits)
+        if not explanation:
+            try:
+                explanation = await generate_with_groq(prompt, json_mode=True)
+            except Exception as e:
+                logging.warning(f"Groq explain failed: {e}")
+                last_error = e
+
+        if not explanation:
+             raise HTTPException(status_code=503, detail=f"Explanation generation failed. All AI services unavailable. Last error: {str(last_error)}")
+
+        result = extract_json(explanation)
+        
+        # Filter Videos
+        if "videos" in result:
+            result["videos"] = [
+                v for v in result["videos"] 
+                if "embedUrl" in v and "???" not in v["embedUrl"] and "REPLACE" not in v["embedUrl"]
+            ]
+
+        logging.info(f"Extracted JSON keys: {list(result.keys())}")
         return result
+    except HTTPException as e:
+        logging.error(f"HTTP Exception in explain_node: {e.detail}")
+        raise e
     except Exception as e:
         logging.error(f"Node explanation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ask-node")
+async def ask_node(request: AskNodeRequest):
+    try:
+        prompt = f"""
+        You are an expert on the concept: "{request.nodeLabel}".
+        Context provided: {request.context}
+
+        User Question: {request.question}
+
+        Provide a concise, specific answer based on the context and your knowledge of {request.nodeLabel}.
+        Do not branch into unrelated topics.
+        """
+        
+        answer = None
+        # Priority 1: Groq
+        # Priority 1: Groq
+        try:
+             answer = await generate_with_groq(prompt, json_mode=False)
+        except Exception as e:
+            logging.warning(f"Groq Ask failed: {e}")
+        
+        # Priority 2: Gemini (Fallback)
+        if not answer:
+             try:
+                 answer = await _generate_with_gemini_internal("gemini-1.5-flash", prompt)
+             except Exception as e:
+                 logging.warning(f"Gemini Ask failed: {e}")
+        
+        # Priority 3: Cohere (Last resort)
+        if not answer:
+             try:
+                 answer = await generate_with_cohere(prompt)
+             except Exception as e:
+                 logging.warning(f"Cohere Ask failed: {e}")
+
+        if not answer:
+            raise HTTPException(status_code=500, detail="Failed to generate answer. All AI providers unavailable.")
+
+        try:
+            # Attempt to parse as JSON if it looks like it
+            if answer.strip().startswith("{"):
+                parsed = json.loads(answer)
+                if "answer" in parsed: answer = parsed["answer"]
+                elif "response" in parsed: answer = parsed["response"]
+                elif "content" in parsed: answer = parsed["content"]
+        except:
+            pass # Use raw text
+            
+        return {"answer": answer}
+
+    except Exception as e:
+        logging.error(f"Ask node error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

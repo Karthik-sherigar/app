@@ -56,6 +56,11 @@ class CodeExecutionRequest(BaseModel):
     code: str
     language: str
 
+class AskNodeRequest(BaseModel):
+    nodeLabel: str
+    context: str
+    question: str
+
 class HistoryItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -111,7 +116,7 @@ def initialize_models():
     if models_str:
         available_models = [m.strip() for m in models_str.split(',') if m.strip()]
     if not available_models:
-        available_models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-002', 'gemini-1.5-pro-latest']
+        available_models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
 
 def initialize_providers():
     global groq_client, cohere_client
@@ -131,14 +136,17 @@ initialize_api_keys()
 initialize_models()
 initialize_providers()
 
-async def generate_with_groq(prompt):
+async def generate_with_groq(prompt, json_mode=True):
     if not groq_client: return None
     try:
-        completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
-            response_format={"type": "json_object"}
-        )
+        kwargs = {
+            "messages": [{"role": "user", "content": prompt}],
+            "model": "llama-3.3-70b-versatile"
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        completion = groq_client.chat.completions.create(**kwargs)
         return completion.choices[0].message.content
     except Exception as e:
         logging.error(f"Groq generation failed: {e}")
@@ -147,7 +155,7 @@ async def generate_with_groq(prompt):
 async def generate_with_cohere(prompt):
     if not cohere_client: return None
     try:
-        response = cohere_client.chat(message=prompt, model="command-r-plus")
+        response = cohere_client.chat(message=prompt, model="command-r-08-2024")
         return response.text
     except Exception as e:
         logging.error(f"Cohere generation failed: {e}")

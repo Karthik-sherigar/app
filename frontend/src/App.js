@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import "@/App.css";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,11 +17,17 @@ import "./components/HistoryDialog.css";
 import { Toaster, toast } from "sonner";
 import { MessageSquare, X } from "lucide-react";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
+import SkeletonLoader from "./components/SkeletonLoader";
+import NodeExplorationItem from "./components/NodeExplorationItem";
+
+import { useLocation } from "react-router-dom";
+import ExplorationPage from "./components/ExplorationPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function App() {
+  const location = useLocation(); // Hook for route checking
   const [mode, setMode] = useState("query");
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
   const [selectedNode, setSelectedNode] = useState(null);
@@ -40,6 +46,14 @@ function App() {
   const [hasNewResponse, setHasNewResponse] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [nodeExplanation, setNodeExplanation] = useState(null); // Deprecated in favor of stack, but keeping for transition? No, removing.
+  // Actually, let's keep nodeExplanation just as a "current loading" placeholder if needed, but better to use stack.
+
+  // NEW STATE
+  const [explorationStack, setExplorationStack] = useState([]);
+  const [currentHistoryId, setCurrentHistoryId] = useState(null);
+  const [nodeExplanationLoading, setNodeExplanationLoading] = useState(false);
+  const [nodeExploreTab, setNodeExploreTab] = useState('text');
 
   const fetchFullHistory = async () => {
     if (historyLoading) return;
@@ -58,75 +72,6 @@ function App() {
     }
   };
 
-  // Exploration Stack for Deep-Dives
-  const [explorationStack, setExplorationStack] = useState([]); // [{ concept, data, graph, index, siblings }]
-
-  // Navigation within the stack
-  const pushExploration = async (node, index = null, siblings = null) => {
-    setLoading(true);
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      try {
-        const response = await axios.post(`${API}/generate-graph`, {
-          query: `Construct a specialized Knowledge Expedition through the sub-architecture of: ${node.label}. Identify 8-12 distinct technical 'stations' that explore its inner logic, data flow, and functional components in a sequential roadmap. Each station should be a unique sub-concept.`,
-          mode: "query"
-        });
-
-        const newEntry = {
-          concept: node,
-          data: response.data,
-          graph: response.data.graph || { nodes: [], edges: [] },
-          index: index,
-          siblings: siblings
-        };
-
-        setExplorationStack(prev => [...prev, newEntry]);
-        toast.success(`Station Discovered: ${node.label}`);
-        setLoading(false);
-        return; // Success
-      } catch (e) {
-        attempts++;
-        if (attempts < maxAttempts) {
-          toast.warning(`Expedition Delayed (Quota). Retrying in 5s... (${attempts}/${maxAttempts})`);
-          await new Promise(r => setTimeout(r, 5000));
-        } else {
-          toast.error(`Access Denied to Station: ${node.label}`);
-          console.error(e);
-        }
-      }
-    }
-    setLoading(false);
-  };
-
-  const navigateSibling = (direction) => {
-    const currentEntry = explorationStack[explorationStack.length - 1];
-    if (!currentEntry || !currentEntry.siblings) return;
-
-    const nextIndex = direction === 'next' ? currentEntry.index + 1 : currentEntry.index - 1;
-    if (nextIndex >= 0 && nextIndex < currentEntry.siblings.length) {
-      // Pop current level and push next sibling to replace it
-      setExplorationStack(prev => prev.slice(0, -1));
-      pushExploration(currentEntry.siblings[nextIndex], nextIndex, currentEntry.siblings);
-    } else {
-      toast.info(`End of the station line reached.`);
-    }
-  };
-
-  const popExploration = () => {
-    setExplorationStack(prev => prev.slice(0, -1));
-  };
-
-  const clearExploration = () => {
-    setExplorationStack([]);
-  };
-
-  useEffect(() => {
-    checkBackendHealth();
-    fetchHistory();
-  }, []);
-
   // Mode Isolation: Reset graph when switching modes
   useEffect(() => {
     setGraphData({ nodes: [], edges: [] });
@@ -135,7 +80,8 @@ function App() {
     setShowExplanation(false);
     setShowChat(false);
     setHasNewResponse(false);
-    clearExploration();
+    setExplorationStack([]);
+    setCurrentHistoryId(null);
   }, [mode]);
 
   const checkBackendHealth = useCallback(async () => {
@@ -155,6 +101,11 @@ function App() {
       console.error("Failed to fetch history:", e);
     }
   }, []);
+
+  useEffect(() => {
+    checkBackendHealth();
+    fetchHistory();
+  }, [checkBackendHealth, fetchHistory]);
 
   const generateGraph = async (query, selectedMode) => {
     setLoading(true);
@@ -176,6 +127,11 @@ function App() {
         setShowNodePanel(false);
         setHasNewResponse(true);
         setLoading(false);
+
+        // NEW: Set History ID and Clear Stack
+        setCurrentHistoryId(data.historyId);
+        setExplorationStack([]);
+
         fetchHistory(); // Refresh history
         return; // Success
       } catch (e) {
@@ -264,23 +220,19 @@ function App() {
     setSelectedNode(null);
     setShowNodePanel(false);
     setShowExplanation(false);
-    clearExploration();
+    setExplorationStack([]);
+    setCurrentHistoryId(null);
     toast.info("Map cleared.");
   }, []);
 
-  const handleNodeClick = React.useCallback((node, index = null, siblings = null) => {
-    if (mode === 'query') {
-      // Trigger full-page Deep-Dive
-      pushExploration(node, index, siblings);
-    } else {
-      setSelectedNode(node);
-      setShowNodePanel(true);
-      setExternalSelectedNode(node?.id);
-    }
-  }, [mode]);
+  const handleNodeClick = React.useCallback((node) => {
+    // Standard click handler
+    setSelectedNode(node);
+    setExternalSelectedNode(node?.id);
+  }, []);
 
   const handleTextNodeClick = React.useCallback((nodeId) => {
-    const node = graphData.nodes.find(n => n.id === nodeId);
+    const node = graphData.nodes?.find(n => n.id === nodeId);
     if (node) {
       setSelectedNode(node);
       setExternalSelectedNode(nodeId);
@@ -288,7 +240,7 @@ function App() {
   }, [graphData]);
 
   const handleExpandConcept = async (nodeId) => {
-    const node = graphData.nodes.find(n => n.id === nodeId);
+    const node = graphData.nodes?.find(n => n.id === nodeId);
     if (node) {
       await expandNode(node.id, node.label);
     }
@@ -310,6 +262,11 @@ function App() {
         const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
         setGraphData(normalizedData);
         setMode(historyItem.mode);
+
+        // NEW: Restore Stack and ID
+        setExplorationStack(dataToRestore.explorationStack || []);
+        setCurrentHistoryId(historyItem.id);
+
         if (!showChat) {
           setHasNewResponse(true);
         }
@@ -332,6 +289,11 @@ function App() {
       console.error(e);
     }
   };
+
+  // ROUTING CHECK
+  if (location.pathname.startsWith('/explore')) {
+    return <ExplorationPage />;
+  }
 
   return (
     <div className={`app ${theme}`} data-testid="app-container">
@@ -383,7 +345,7 @@ function App() {
               selectedNode={selectedNode}
               externalSelectedNode={externalSelectedNode}
             />
-          ) : (loading || graphData.nodes.length > 0) ? (
+          ) : (loading || graphData.nodes?.length > 0) ? (
             <>
               <AnimatePresence>
                 {showChat && (
@@ -410,17 +372,108 @@ function App() {
                     />
                   </motion.div>
                 )}
+
               </AnimatePresence>
 
               {/* Main Graph Visualization */}
               {mode === 'query' ? (
-                <OrganicTreeGraph
-                  graphData={graphData}
-                  onNodeClick={handleNodeClick}
-                  selectedNode={externalSelectedNode}
-                  mode={mode}
-                  loading={loading}
-                />
+                <>
+                  <OrganicTreeGraph
+                    graphData={graphData}
+                    onNodeClick={handleNodeClick}
+                    onExploreNode={async (nodeData) => {
+                      if (!nodeData) return;
+
+                      // Check if already in stack
+                      const existingIndex = explorationStack.findIndex(item => item.nodeId === nodeData.id);
+                      if (existingIndex !== -1) {
+                        document.getElementById(`explanation-${nodeData.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        toast.info("Station already explored.");
+                        return;
+                      }
+
+                      setNodeExplanationLoading(true);
+                      // Scroll to loading area (bottom)
+                      setTimeout(() => {
+                        document.querySelector('.node-explore-loading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 100);
+
+                      try {
+                        const res = await fetch('/api/explain-node', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            nodeId: nodeData.id,
+                            nodeLabel: nodeData.label,
+                            context: nodeData.description || ''
+                          })
+                        });
+
+                        if (res.ok) {
+                          const data = await res.json();
+
+                          // Flexible data handling
+                          if (!data.textResponse && (data.content || data.response || data.message)) {
+                            const text = data.content || data.response || data.message;
+                            if (typeof text === 'string') {
+                              data.textResponse = { overview: text };
+                            } else if (typeof text === 'object') {
+                              data.textResponse = text;
+                            }
+                          }
+
+                          // Validate response
+                          if (data && (data.textResponse || data.explanation || data.answer)) {
+                            const newExplanation = {
+                              ...data,
+                              nodeId: nodeData.id,
+                              nodeLabel: nodeData.label,
+                              timestamp: Date.now()
+                            };
+
+                            // Update Stack
+                            const newStack = [...explorationStack, newExplanation];
+                            setExplorationStack(newStack);
+
+                            // PERSIST to History
+                            if (currentHistoryId) {
+                              axios.put(`${API}/history/${currentHistoryId}`, {
+                                ...graphData,
+                                explorationStack: newStack
+                              }).catch(err => console.error("Failed to auto-save history:", err));
+                            }
+                          } else {
+                            console.error("Invalid explanation data format.");
+                            toast.error("Received invalid data from station.");
+                          }
+                        } else {
+                          toast.error('Failed to load explanation.');
+                        }
+                      } catch (e) {
+                        console.error('Node explanation error:', e);
+                        toast.error('Failed to load explanation.');
+                      } finally {
+                        setNodeExplanationLoading(false);
+                      }
+                    }}
+                    selectedNode={externalSelectedNode}
+                    mode={mode}
+                    loading={loading}
+                  />
+
+                  {/* Below-graph exploration section — Stacked Explanations */}
+                  <div className="exploration-stack">
+                    {explorationStack.map((exp, index) => (
+                      <NodeExplorationItem key={exp.nodeId || index} data={exp} />
+                    ))}
+
+                    {nodeExplanationLoading && (
+                      <div className="node-explore-section node-explore-loading">
+                        <SkeletonLoader />
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <GraphCanvas
                   graphData={graphData}
@@ -456,7 +509,7 @@ function App() {
 
         </main>
 
-        {mode === "query" && (
+        {mode === "query" && graphData.nodes.length === 0 && (
           <BottomInputBar
             onSubmit={(query) => generateGraph(query, "query")}
             loading={loading}
@@ -464,17 +517,6 @@ function App() {
           />
         )}
 
-        <AnimatePresence>
-          {showNodePanel && selectedNode && (
-            <NodeDetailsPanel
-              node={selectedNode}
-              onClose={() => setShowNodePanel(false)}
-              onExpand={() => expandNode(selectedNode.id, selectedNode.label)}
-              onExplain={() => explainConfusion(selectedNode.label)}
-              graphData={graphData}
-            />
-          )}
-        </AnimatePresence>
 
         <AnimatePresence>
           {showExplanation && explanationData && (

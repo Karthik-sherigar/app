@@ -1,24 +1,19 @@
 .organic-tree-container {
     width: 100%;
-    height: 100%;
+    height: auto;
+    min-height: 100%;
     position: relative;
-    overflow: hidden;
-    background: linear-gradient(180deg, #0b1220 0%, #1a1f35 100%);
+    overflow: visible;
+    background: transparent;
 }
 
 .tree-scroll-wrapper {
     width: 100%;
-    height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    height: auto;
+    overflow: visible;
     position: relative;
-    /* Smooth scrolling */
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    /* GPU acceleration */
-    transform: translateZ(0);
-    will-change: scroll-position;
 }
+
 
 /* Custom scrollbar for tree */
 .tree-scroll-wrapper::-webkit-scrollbar {

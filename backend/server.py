@@ -143,16 +143,47 @@ async def delete_history_item(item_id: int):
         raise HTTPException(status_code=404, detail="History item not found")
     return {"message": "History item deleted"}
 
+@app.put("/api/history/{item_id}")
+async def update_history_item(item_id: int, request: Request):
+    try:
+        body = await request.json()
+        # Validating that body is a dict is good practice
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Request body must be a JSON object")
+            
+        updated_item = session_service.update_history_item(item_id, json.dumps(body))
+        if not updated_item:
+            raise HTTPException(status_code=404, detail="History item not found")
+        return {"min_success": True}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logging.error(f"Update history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/explain-node")
 async def explain_node_proxy(request: Request):
     """Proxy endpoint for detailed node explanations"""
     try:
         body = await request.json()
         target_url = f"{QUERY_SERVER_URL}/api/explain-node"
-        response = await client.post(target_url, json=body, timeout=30.0)
+        response = await client.post(target_url, json=body, timeout=60.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (explain-node): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ask-node")
+async def ask_node_proxy(request: Request):
+    """Proxy endpoint for asking questions about a node"""
+    try:
+        body = await request.json()
+        target_url = f"{QUERY_SERVER_URL}/api/ask-node"
+        # Increase timeout for LLM generation
+        response = await client.post(target_url, json=body, timeout=60.0)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Proxy error (ask-node): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")

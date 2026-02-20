@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TreeNodeCard from './TreeNodeCard';
-import NodeExplorationStack from './NodeExplorationStack';
-import HorizontalDivider from './HorizontalDivider';
 import './OrganicTreeGraph.css';
 
-const OrganicTreeGraph = ({ graphData, onNodeClick, selectedNode, mode, loading }) => {
+const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode, mode, loading }) => {
     const [treeLayout, setTreeLayout] = useState(null);
     const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
     const containerRef = useRef(null);
-    const exploreNodeRef = useRef(null); // Store exploration function
 
     // Build tree hierarchy from graph data
     const buildTreeHierarchy = (nodes, edges) => {
@@ -242,11 +239,11 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, selectedNode, mode, loading 
                                 node={node}
                                 level={node.level}
                                 onClick={(clickedNode) => {
-                                    // Call original onNodeClick if provided
-                                    if (onNodeClick) onNodeClick(clickedNode);
-                                    // Trigger exploration
-                                    if (exploreNodeRef.current) {
-                                        exploreNodeRef.current(clickedNode);
+                                    if (onExploreNode) {
+                                        // Exploration mode: only fetch explanation, don't trigger graph regeneration
+                                        onExploreNode(clickedNode);
+                                    } else if (onNodeClick) {
+                                        onNodeClick(clickedNode);
                                     }
                                 }}
                             />
@@ -254,16 +251,6 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, selectedNode, mode, loading 
                     ))}
                 </div>
             </div>
-
-            {/* Horizontal Divider - End of Graph */}
-            <HorizontalDivider text="Explore Concepts Below" gradient={true} />
-
-            {/* Node Exploration Stack - appears below graph */}
-            <NodeExplorationStack
-                onNodeClick={(exploreFunc) => {
-                    exploreNodeRef.current = exploreFunc;
-                }}
-            />
         </div>
     );
 };

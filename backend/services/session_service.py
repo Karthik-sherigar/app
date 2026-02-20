@@ -109,3 +109,23 @@ class SessionService:
         except Exception as e:
             logger.error(f"Error deleting history item {item_id}: {e}")
             return False
+
+    def update_history_item(self, item_id: int, answer_data: str):
+        """
+        Update the answer data for a specific history item.
+        """
+        try:
+            db = SessionLocal()
+            item = db.query(QueryHistory).filter(QueryHistory.id == item_id).first()
+            if item:
+                item.answer = str(answer_data)
+                db.commit()
+                db.refresh(item)
+                db.close()
+                logger.info(f"Updated history item: {item_id}")
+                return item
+            db.close()
+            return None
+        except Exception as e:
+            logger.error(f"Error updating history item {item_id}: {e}")
+            return None
