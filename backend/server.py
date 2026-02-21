@@ -41,7 +41,7 @@ async def generate_graph_proxy(request: Request):
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported mode: {mode}")
         
-        response = await client.post(target_url, json=body, timeout=60.0)
+        response = await client.post(target_url, json=body, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (generate-graph): {e}")
@@ -52,7 +52,7 @@ async def generate_graph_from_pdf_proxy(file: UploadFile = File(...)):
     try:
         # Re-upload the file to the PDF server
         files = {"file": (file.filename, await file.read(), file.content_type)}
-        response = await client.post(f"{PDF_SERVER_URL}/api/generate-graph-from-pdf", files=files, timeout=60.0)
+        response = await client.post(f"{PDF_SERVER_URL}/api/generate-graph-from-pdf", files=files, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (pdf): {e}")
@@ -63,7 +63,7 @@ async def expand_node_proxy(request: Request):
     try:
         body = await request.json()
         # Node expansion is currently handled by query server
-        response = await client.post(f"{QUERY_SERVER_URL}/api/expand-node", json=body, timeout=60.0)
+        response = await client.post(f"{QUERY_SERVER_URL}/api/expand-node", json=body, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (expand-node): {e}")
@@ -167,7 +167,7 @@ async def explain_node_proxy(request: Request):
     try:
         body = await request.json()
         target_url = f"{QUERY_SERVER_URL}/api/explain-node"
-        response = await client.post(target_url, json=body, timeout=60.0)
+        response = await client.post(target_url, json=body, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (explain-node): {e}")

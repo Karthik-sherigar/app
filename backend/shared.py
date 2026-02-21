@@ -122,12 +122,14 @@ def initialize_providers():
     global groq_client, cohere_client
     if os.environ.get("GROQ_API_KEY"):
         try:
-            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+            # max_retries=0 ensures instant failure on rate limit instead of sleeping
+            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"), max_retries=0)
         except Exception as e:
             logging.error(f"Failed to initialize Groq: {e}")
     if os.environ.get("COHERE_API_KEY"):
         try:
-            cohere_client = cohere.Client(api_key=os.environ.get("COHERE_API_KEY"))
+            # max_retries=0 ensures instant failure on rate limit
+            cohere_client = cohere.Client(api_key=os.environ.get("COHERE_API_KEY"), max_retries=0)
         except Exception as e:
             logging.error(f"Failed to initialize Cohere: {e}")
 
@@ -145,23 +147,37 @@ async def generate_with_groq(prompt, json_mode=True):
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-            
-        completion = groq_client.chat.completions.create(**kwargs)
+        # Run synchronous Groq client in a thread pool with 45s timeout
+        completion = await asyncio.wait_for(
+            asyncio.to_thread(
+                groq_client.chat.completions.create,
+                **kwargs
+            ),
+            timeout=45.0
+        )
         return completion.choices[0].message.content
     except Exception as e:
         logging.error(f"Groq generation failed: {e}")
         raise e
 
 async def generate_with_cohere(prompt):
-    if not cohere_client: return None
+    if not cohere_client: return None    
     try:
-        response = cohere_client.chat(message=prompt, model="command-r-08-2024")
+        # Run synchronous Cohere client in a thread pool with 45s timeout
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                cohere_client.chat,
+                message=prompt,
+                model="command-r-08-2024"
+            ),
+            timeout=45.0
+        )
         return response.text
     except Exception as e:
         logging.error(f"Cohere generation failed: {e}")
         raise e
 
-async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_index=None):
+async def _gemini_loop(preferred_model, prompt, forced_key_index=None):
     models_to_try = [preferred_model] + [m for m in available_models if m != preferred_model]
     last_error = None
     for model in models_to_try:
@@ -170,17 +186,34 @@ async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_ind
             k_index = (start_index + i) % len(api_keys)
             try:
                 client = get_gemini_client(key_index=k_index)
-                response = client.models.generate_content(model=model, contents=prompt)
+                # Wrap synchronous SDK call in thread and enforce strict timeout
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        client.models.generate_content,
+                        model=model,
+                        contents=prompt
+                    ),
+                    timeout=30.0 # 30s per Gemini attempt
+                )
                 return response.text
+            except asyncio.TimeoutError:
+                last_error = Exception(f"Timeout waiting for Gemini model {model}")
+                rotate_api_key()
             except Exception as e:
                 error_msg = str(e)
                 last_error = e
-                if any(code in error_msg for code in ['503', '429', 'overloaded', 'quota', 'UNAVAILABLE', 'RESOURCE_EXHAUSTED']):
-                    await asyncio.sleep(3)
-                    rotate_api_key()
-                else:
-                    rotate_api_key()
+                rotate_api_key()
     raise last_error
+
+async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_index=None):
+    """Wraps Gemini fallback loop with an absolute 45-second timeout."""
+    try:
+        return await asyncio.wait_for(
+            _gemini_loop(preferred_model, prompt, forced_key_index),
+            timeout=45.0
+        )
+    except asyncio.TimeoutError:
+        raise Exception("Gemini overall timeout exceeded. Failing over to next provider.")
 
 async def generate_with_fallback(preferred_model, prompt):
     try:

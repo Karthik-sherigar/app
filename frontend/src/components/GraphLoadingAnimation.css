@@ -4,10 +4,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(8, 11, 18, 0.4);
-    backdrop-filter: blur(8px);
+    background: radial-gradient(circle at center, rgba(99, 102, 241, 0.05) 0%, transparent 60%);
     z-index: 1000;
     overflow: hidden;
+    pointer-events: none;
 }
 
 .graph-loading-container.minimal {
@@ -15,156 +15,204 @@
     backdrop-filter: blur(20px);
 }
 
-.graph-loading-content {
+.skeleton-tree-wrapper {
     position: relative;
-    width: 600px;
-    height: 600px;
+    width: 800px;
+    height: 500px;
     display: flex;
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
+    align-items: flex-start;
 }
 
-.skeleton-construction-area {
-    position: relative;
-    width: 100%;
-    height: 450px;
-    margin-bottom: 40px;
-}
-
-.skeleton-card {
-    position: absolute;
-    width: 130px;
-    height: 38px;
-    background: rgba(30, 41, 59, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    display: flex;
-    align-items: center;
-    padding: 0 12px;
-    backdrop-filter: blur(4px);
-}
-
-.skeleton-card.pill {
-    border-radius: 24px;
-    width: 150px;
-    height: 36px;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.card-inner-construction {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-}
-
-.skeleton-icon-box {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.skeleton-icon-box.concept {
-    color: #818cf8;
-    background: rgba(129, 140, 248, 0.1);
-}
-
-.skeleton-icon-box.logic {
-    color: #f472b6;
-    background: rgba(244, 114, 182, 0.1);
-}
-
-.skeleton-icon-box.data {
-    color: #34d399;
-    background: rgba(52, 211, 153, 0.1);
-}
-
-.skeleton-icon-box.code {
-    color: #fbbf24;
-    background: rgba(251, 191, 36, 0.1);
-}
-
-.skeleton-icon-box svg {
-    width: 12px;
-    height: 12px;
-}
-
-.skeleton-text-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    margin-left: 2px;
-    width: 100%;
-}
-
-.node-status-label {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.7);
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
-}
-
-.shimmer-line {
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.1) 50%,
-            rgba(255, 255, 255, 0) 100%);
-    background-size: 200% 100%;
-    animation: shimmer-text 2s infinite linear;
-    margin-top: 2px;
-    border-radius: 1px;
-}
-
-@keyframes shimmer-text {
-    0% {
-        background-position: -100% 0;
-    }
-
-    100% {
-        background-position: 100% 0;
-    }
-}
-
+/* Base Bezier Curve Lines */
 .skeleton-edge-container {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: -1;
-    overflow: visible;
+    z-index: 1;
 }
 
-.loading-text-container {
-    height: 40px;
+.skeleton-edge-base {
+    stroke: rgba(255, 255, 255, 0.05);
+    /* Ghost track */
+    fill: none;
+    stroke-width: 2px;
+}
+
+/* Data Flow / Light Beam Energy */
+.skeleton-edge-flow {
+    stroke: url(#data-flow-gradient);
+    fill: none;
+    stroke-width: 3px;
+    stroke-linecap: round;
+    /* The dash settings depend on the curve length, handled in JS via pathLength */
+}
+
+/* Glassmorphic Nodes */
+.skeleton-node {
+    position: absolute;
+    width: 180px;
+    height: 48px;
+    border-radius: 24px;
+    /* Capsule pill shape */
+    background: rgba(30, 41, 59, 0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    z-index: 2;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    /* Transform to center exactly on x,y coordinates provided by JS */
+    transform: translate(-50%, -50%);
+    overflow: hidden;
+}
+
+.skeleton-node-shimmer {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.1) 50%,
+            rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-20deg);
+    animation: glass-shimmer 2.5s infinite linear;
+    pointer-events: none;
+}
+
+@keyframes glass-shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 200%;
+    }
+}
+
+.skeleton-icon-box {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-right: 12px;
 }
 
-.loading-status-text {
+.skeleton-icon-box svg {
+    width: 14px;
+    height: 14px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.skeleton-text-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.skeleton-line {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    height: 6px;
+}
+
+.skeleton-line.short {
+    width: 60%;
+}
+
+.skeleton-line.long {
+    width: 90%;
+}
+
+/* Background Atmospheric Glow */
+.tree-glow-bg {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0) 60%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    pointer-events: none;
+    animation: pulse-glow 4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-glow {
+    0% {
+        opacity: 0.6;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+}
+
+/* Bottom Loading Text */
+.loading-status-overlay {
+    position: absolute;
+    bottom: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 10;
+}
+
+.typewriter-status {
+    font-family: 'Inter', system-ui, sans-serif;
     font-size: 14px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
-    letter-spacing: 1px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.8);
     text-transform: uppercase;
-    font-family: 'Inter', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-/* Minimal Loader for other modes */
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6366f1;
+    animation: typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typing-bounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
+    }
+}
+
+/* Minimal Loader */
 .minimal-loader {
     width: 300px;
     text-align: center;
@@ -172,10 +220,10 @@
 
 .minimal-bar {
     height: 2px;
-    background: var(--accent-primary, #6366f1);
+    background: #6366f1;
     margin-bottom: 20px;
     border-radius: 2px;
-    box-shadow: 0 0 10px var(--accent-primary, #6366f1);
+    box-shadow: 0 0 10px #6366f1;
 }
 
 .loading-subtitle {

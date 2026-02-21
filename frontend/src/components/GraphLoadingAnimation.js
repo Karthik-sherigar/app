@@ -1,139 +1,120 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { Network, Database, Brain, Cpu, Zap, Activity } from 'lucide-react';
 import './GraphLoadingAnimation.css';
 
-const NODE_LABELS = [
-    "Analyzing...",
-    "Extracting...",
-    "Mapping...",
-    "Linking...",
-    "Synthesizing...",
-    "Optimizing...",
-    "Categorizing..."
+const VERBS = [
+    "Analyzing context",
+    "Extracting entities",
+    "Mapping relationships",
+    "Synthesizing knowledge",
+    "Organizing concepts",
+    "Generating tree"
 ];
 
-const ICONS = {
-    concept: (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v8m0 0l-4-4m4 4l4-4M5 22h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v13a2 2 0 002 2z" />
-        </svg>
-    ),
-    logic: (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-        </svg>
-    ),
-    data: (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <ellipse cx="12" cy="5" rx="9" ry="3" />
-            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-        </svg>
-    ),
-    code: (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="16 18 22 12 16 6" />
-            <polyline points="8 6 2 12 8 18" />
-        </svg>
-    )
+const ICONS = [Network, Database, Brain, Cpu, Zap, Activity];
+
+// Structured Tree Layout: 1 Root -> 3 Children -> 5 Grandchildren
+const TREE_NODES = [
+    // Root
+    { id: 'n1', x: 400, y: 60, icon: 2, lines: ['short'] },
+    // Level 1
+    { id: 'n2', x: 150, y: 220, icon: 0, lines: ['long', 'short'] },
+    { id: 'n3', x: 400, y: 240, icon: 1, lines: ['long'] },
+    { id: 'n4', x: 650, y: 220, icon: 0, lines: ['short', 'long'] },
+    // Level 2
+    { id: 'n5', x: 70, y: 380, icon: 4, lines: ['short'] },
+    { id: 'n6', x: 230, y: 400, icon: 3, lines: ['long'] },
+    { id: 'n7', x: 400, y: 420, icon: 5, lines: ['short', 'short'] },
+    { id: 'n8', x: 570, y: 400, icon: 3, lines: ['long'] },
+    { id: 'n9', x: 730, y: 380, icon: 4, lines: ['short'] },
+];
+
+const TREE_EDGES = [
+    { source: 'n1', target: 'n2', delay: 0.5 },
+    { source: 'n1', target: 'n3', delay: 0.7 },
+    { source: 'n1', target: 'n4', delay: 0.9 },
+    { source: 'n2', target: 'n5', delay: 1.2 },
+    { source: 'n2', target: 'n6', delay: 1.4 },
+    { source: 'n3', target: 'n7', delay: 1.6 },
+    { source: 'n4', target: 'n8', delay: 1.8 },
+    { source: 'n4', target: 'n9', delay: 2.0 },
+];
+
+const SkeletonNode = ({ x, y, icon, lines, delay }) => {
+    const Icon = ICONS[icon % ICONS.length];
+    return (
+        <motion.div
+            className="skeleton-node"
+            style={{ left: x, top: y }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: delay, ease: "easeOut" }}
+        >
+            <div className="skeleton-node-shimmer" />
+            <div className="skeleton-icon-box">
+                <Icon size={14} />
+            </div>
+            <div className="skeleton-text-lines">
+                {lines.map((len, i) => (
+                    <div key={i} className={`skeleton-line ${len}`} />
+                ))}
+            </div>
+        </motion.div>
+    );
 };
 
-const SkeletonCard = ({ x, y, type = 'concept', label = '' }) => (
-    <motion.div
-        className="skeleton-card pill colored-node"
-        initial={{ opacity: 0, scale: 0.8, x: x - 75, y: y - 18 }}
-        animate={{ opacity: 1, scale: 1, x: x - 75, y: y - 18 }}
-        exit={{ opacity: 0, scale: 0.8 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-    >
-        <div className="card-inner-construction">
-            <div className={`skeleton-icon-box ${type}`}>{ICONS[type]}</div>
-            <div className="skeleton-text-content">
-                <span className="node-status-label">{label}</span>
-                <div className="shimmer-line" />
-            </div>
-        </div>
-    </motion.div>
-);
+const SkeletonEdge = ({ sourceId, targetId, delay }) => {
+    const sourceNode = TREE_NODES.find(n => n.id === sourceId);
+    const targetNode = TREE_NODES.find(n => n.id === targetId);
 
-const SkeletonLine = ({ x1, y1, x2, y2, id }) => (
-    <svg className="skeleton-edge-container" style={{ pointerEvents: 'none' }}>
-        <motion.path
-            key={`path-${id}`}
-            d={`M ${x1} ${y1} Q ${(x1 + x2) / 2 + 30} ${(y1 + y2) / 2} ${x2} ${y2}`}
-            fill="none"
-            stroke="rgba(255, 255, 255, 0.12)"
-            strokeWidth="1.5"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.2, ease: "easeInOut" }}
-        />
-    </svg>
-);
+    if (!sourceNode || !targetNode) return null;
 
-const INITIAL_NODES = [
-    { id: 'root', x: 300, y: 60, type: 'concept', parent: null, label: 'Root Concept' }
-];
+    const x1 = sourceNode.x;
+    const y1 = sourceNode.y + 24; // Bottom of source
+    const x2 = targetNode.x;
+    const y2 = targetNode.y - 24; // Top of target
+
+    // Cubic bezier for sweeping organic curve
+    const pathD = `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`;
+
+    return (
+        <g>
+            {/* Ghost Track */}
+            <motion.path
+                d={pathD}
+                className="skeleton-edge-base"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: delay }}
+            />
+            {/* Energy flow beam overlay */}
+            <motion.path
+                d={pathD}
+                className="skeleton-edge-flow"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: [0, 1, 1], opacity: [0, 1, 0] }}
+                transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    delay: delay,
+                    ease: "easeInOut",
+                    times: [0, 0.6, 1]
+                }}
+            />
+        </g>
+    );
+};
 
 const GraphLoadingAnimation = ({ mode = 'query' }) => {
-    const [nodes, setNodes] = useState(INITIAL_NODES);
+    const [verbIndex, setVerbIndex] = useState(0);
 
+    // Swap text every 2s
     useEffect(() => {
-        const spawnInterval = setInterval(() => {
-            setNodes(prevNodes => {
-                let nextNodes = [...prevNodes];
-
-                if (nextNodes.length >= 7) {
-                    // Smooth pruning
-                    nextNodes.splice(1, 1);
-                }
-
-                const parent = nextNodes[Math.floor(Math.random() * nextNodes.length)];
-                const nodeType = ['concept', 'logic', 'data', 'code'][Math.floor(Math.random() * 4)];
-
-                let newNode = null;
-                let attempts = 0;
-                const MIN_DISTANCE = 110; // Increased distance to prevent overlap
-
-                while (attempts < 8) {
-                    const testNode = {
-                        id: `node-${Date.now()}-${attempts}`,
-                        x: parent.x + (Math.random() * 340 - 170),
-                        y: parent.y + 140 + (Math.random() * 40),
-                        type: nodeType,
-                        label: NODE_LABELS[Math.floor(Math.random() * NODE_LABELS.length)],
-                        parent: { x: parent.x, y: parent.y }
-                    };
-
-                    // Constraints to stay in view
-                    if (testNode.x < 130) testNode.x = 160;
-                    if (testNode.x > 470) testNode.x = 440;
-
-                    // Collision check against all existing nodes
-                    const isOverlapping = nextNodes.some(node => {
-                        const dx = node.x - testNode.x;
-                        const dy = node.y - testNode.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        return dist < MIN_DISTANCE;
-                    });
-
-                    if (!isOverlapping || attempts === 7) {
-                        newNode = testNode;
-                        if (!isOverlapping) break; // Found a good spot
-                    }
-                    attempts++;
-                }
-
-                if (newNode.y > 520) {
-                    return INITIAL_NODES; // Reset if too deep
-                }
-
-                return [...nextNodes, newNode];
-            });
-        }, 1500);
-
-        return () => clearInterval(spawnInterval);
+        const interval = setInterval(() => {
+            setVerbIndex((prev) => (prev + 1) % VERBS.length);
+        }, 2200);
+        return () => clearInterval(interval);
     }, []);
 
     if (mode !== 'query') {
@@ -153,32 +134,44 @@ const GraphLoadingAnimation = ({ mode = 'query' }) => {
 
     return (
         <div className="graph-loading-container">
-            <div className="graph-loading-content">
-                <div className="skeleton-construction-area">
-                    <AnimatePresence>
-                        {nodes.map(node => node.parent && (
-                            <SkeletonLine
-                                key={`edge-${node.id}`}
-                                id={node.id}
-                                x1={node.parent.x}
-                                y1={node.parent.y}
-                                x2={node.x}
-                                y2={node.y}
-                            />
-                        ))}
-                    </AnimatePresence>
+            <div className="tree-glow-bg" />
 
-                    <AnimatePresence>
-                        {nodes.map(node => (
-                            <SkeletonCard
-                                key={node.id}
-                                x={node.x}
-                                y={node.y}
-                                type={node.type}
-                                label={node.label}
-                            />
-                        ))}
-                    </AnimatePresence>
+            <div className="skeleton-tree-wrapper">
+                {/* SVG Curves Layer */}
+                <svg className="skeleton-edge-container" viewBox="0 0 800 500">
+                    <defs>
+                        <linearGradient id="data-flow-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="rgba(99, 102, 241, 0)" />
+                            <stop offset="50%" stopColor="rgba(99, 102, 241, 1)" />
+                            <stop offset="100%" stopColor="rgba(139, 92, 246, 0.8)" />
+                        </linearGradient>
+                    </defs>
+                    {TREE_EDGES.map((edge, idx) => (
+                        <SkeletonEdge key={idx} sourceId={edge.source} targetId={edge.target} delay={edge.delay} />
+                    ))}
+                </svg>
+
+                {/* Glassmorphic Nodes Layer */}
+                {TREE_NODES.map((node, idx) => (
+                    <SkeletonNode
+                        key={node.id}
+                        x={node.x}
+                        y={node.y}
+                        icon={node.icon}
+                        lines={node.lines}
+                        delay={idx * 0.15}
+                    />
+                ))}
+            </div>
+
+            <div className="loading-status-overlay">
+                <div className="typewriter-status">
+                    {VERBS[verbIndex]}
+                    <div style={{ display: 'flex', gap: '4px', marginLeft: '4px' }}>
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                    </div>
                 </div>
             </div>
         </div>

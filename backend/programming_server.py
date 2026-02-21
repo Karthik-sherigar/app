@@ -42,8 +42,11 @@ CODE TO ANALYZE:
 
 Format as JSON with this exact structure:
 {{
-  "answer": "A clear, step-by-step summary...",
-  "sections": {{ "overview": "...", "phases": [...] }},
+  "answer": "A comprehensive explanatory narration of the entire generated graph, explicitly detailing how each node connects to the others and the nature of their relationships.",
+  "sections": {{ 
+    "overview": "Brief 2-3 sentence overview of the subject.",
+    "summary": "A concise 2-3 paragraph summary of the detailed overview, capturing the essence of the graph's structure and concepts."
+  }},
   "graph": {{
     "nodes": [
       {{ "id": "slug", "label": "Name", "type": "LogicPhase", "description": "...", "importance": "high" }}

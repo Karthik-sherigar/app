@@ -1,17 +1,80 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Send } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import TypingText from './TypingText';
+import SkeletonLoader from './SkeletonLoader';
 import '../App.css';
+import './NodeExplanation.css';
+
+const WikipediaImage = ({ query, fallbackSeed, onClickView, onClickSource }) => {
+    const [imgUrl, setImgUrl] = useState(null);
+    const [sourceUrl, setSourceUrl] = useState(null);
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => {
+        const fetchWiki = async () => {
+            try {
+                // Simplify query to grab the most prominent entity
+                const cleanQuery = query.split(' - ')[0].split(' — ')[0].trim();
+                const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanQuery)}`);
+                if (!res.ok) throw new Error("Wiki search failed");
+                const data = await res.json();
+
+                if (data.thumbnail && data.thumbnail.source) {
+                    // Wiki uses smaller thumbnails by default. We can request a larger size by tweaking URL format if needed, but the provided source is usually decent.
+                    setImgUrl(data.thumbnail.source);
+                    setSourceUrl(data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(cleanQuery)}`);
+                } else {
+                    setFailed(true);
+                }
+            } catch (err) {
+                setFailed(true);
+            }
+        };
+        fetchWiki();
+    }, [query]);
+
+    // Fallback visually pleasing internet placeholder if Wiki entity has no hero image
+    const finalUrl = failed ? `https://picsum.photos/seed/${encodeURIComponent(fallbackSeed)}/400/300` : imgUrl;
+    const finalSource = failed ? `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}` : sourceUrl;
+
+    return (
+        <div className="node-explore-image-preview">
+            {!finalUrl ? (
+                <div className="node-explore-image-fallback" style={{ fontSize: '18px' }}>Loading...</div>
+            ) : (
+                <>
+                    <img
+                        src={finalUrl}
+                        alt={query}
+                        loading="lazy"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                        }}
+                    />
+                    <div className="node-explore-image-fallback" style={{ display: 'none' }}>🔍</div>
+                    <div className="node-explore-image-hover-overlay">
+                        <button className="img-hover-btn" onClick={() => onClickView(finalUrl)}>View</button>
+                        <a href={finalSource} target="_blank" rel="noopener noreferrer" className="img-hover-btn outline">Open Source</a>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const NodeExplorationItem = ({ data }) => {
-    const [activeTab, setActiveTab] = useState('text');
+const NodeExplorationItem = ({ data, onUpdate }) => {
+    const [activeTab, setActiveTab] = useState(data.activeTab || 'text');
     const [question, setQuestion] = useState('');
-    const [chatHistory, setChatHistory] = useState([]); // Array of { role: 'user'|'ai', content: string, typing?: boolean } // Modified
+    const [chatHistory, setChatHistory] = useState(data.chatHistory || []); // Array of { role: 'user'|'ai', content: string, typing?: boolean }
     const [asking, setAsking] = useState(false);
-    const chatEndRef = useRef(null); // Added ref
+    const [selectedImageDialog, setSelectedImageDialog] = useState(null);
+    const chatEndRef = useRef(null);
 
     const scrollToBottom = () => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,7 +92,9 @@ const NodeExplorationItem = ({ data }) => {
         setAsking(true);
 
         // Add user message to history
-        setChatHistory(prev => [...prev, { role: 'user', content: currentQuestion }]);
+        const updatedHistoryUser = [...chatHistory, { role: 'user', content: currentQuestion }];
+        setChatHistory(updatedHistoryUser);
+        if (onUpdate) onUpdate({ ...data, chatHistory: updatedHistoryUser });
 
         try {
             // Include previous history in context? For now, we just send node context.
@@ -41,28 +106,38 @@ const NodeExplorationItem = ({ data }) => {
             });
 
             // Add AI message with typing effect
-            setChatHistory(prev => [...prev, {
+            const finalHistory = [...updatedHistoryUser, {
                 role: 'ai',
                 content: res.data.answer,
                 typing: true
-            }]);
+            }];
+            setChatHistory(finalHistory);
+            if (onUpdate) onUpdate({ ...data, chatHistory: finalHistory });
         } catch (e) {
             console.error(e);
-            const errorMsg = e.response?.data?.detail || "Failed to get an answer. Please try again."; // Added error handling
-            setChatHistory(prev => [...prev, { role: 'ai', content: errorMsg, typing: true }]); // Added typing to error message
+            const errorMsg = e.response?.data?.detail || "Failed to get an answer. Please try again.";
+            const errorHistory = [...updatedHistoryUser, { role: 'ai', content: errorMsg, typing: true }];
+            setChatHistory(errorHistory);
+            if (onUpdate) onUpdate({ ...data, chatHistory: errorHistory });
         } finally {
             setAsking(false);
         }
     };
 
-    const handleTypingComplete = (index) => { // Added new function
+    const handleTypingComplete = (index) => {
         setChatHistory(prev => {
             const newHistory = [...prev];
             if (newHistory[index]) {
                 newHistory[index] = { ...newHistory[index], typing: false };
             }
+            if (onUpdate) onUpdate({ ...data, chatHistory: newHistory });
             return newHistory;
         });
+    };
+
+    const handleTabChange = (tabId) => {
+        setActiveTab(tabId);
+        if (onUpdate) onUpdate({ ...data, activeTab: tabId });
     };
 
     if (!data) return null;
@@ -80,7 +155,7 @@ const NodeExplorationItem = ({ data }) => {
             <div className="node-explore-tabs">
                 <button
                     className={`node-explore-tab-btn${activeTab === 'ask' ? ' active' : ''}`}
-                    onClick={() => setActiveTab('ask')}
+                    onClick={() => handleTabChange('ask')}
                 >
                     Ask
                 </button>
@@ -93,7 +168,7 @@ const NodeExplorationItem = ({ data }) => {
                     <button
                         key={tab.id}
                         className={`node-explore-tab-btn${activeTab === tab.id ? ' active' : ''}`}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => handleTabChange(tab.id)}
                     >
                         {tab.label}
                     </button>
@@ -111,195 +186,203 @@ const NodeExplorationItem = ({ data }) => {
 
             {/* Tab content */}
             <div className="node-explore-content">
+                <AnimatePresence mode="wait">
 
-                {/* ASK TAB */}
-                {activeTab === 'ask' && (
-                    <div className="node-explore-ask">
-                        <div className="ask-input-wrapper">
-                            <input
-                                type="text"
-                                className="ask-input"
-                                value={question}
-                                onChange={(e) => setQuestion(e.target.value)}
-                                placeholder={`Ask about ${data.nodeLabel}...`}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-                            />
-                            <button
-                                className="ask-send-btn"
-                                onClick={handleAsk}
-                                disabled={asking || !question.trim()}
-                            >
-                                <Send size={18} />
-                            </button>
-                        </div>
+                    {/* ASK TAB */}
+                    {activeTab === 'ask' && (
+                        <motion.div key="ask" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-ask">
+                            <div className="ask-input-wrapper">
+                                <input
+                                    type="text"
+                                    className="ask-input"
+                                    value={question}
+                                    onChange={(e) => setQuestion(e.target.value)}
+                                    placeholder={`Ask about ${data.nodeLabel}...`}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+                                />
+                                <button
+                                    className="ask-send-btn"
+                                    onClick={handleAsk}
+                                    disabled={asking || !question.trim()}
+                                >
+                                    <Send size={18} />
+                                </button>
+                            </div>
 
-                        <div className="ask-chat-history">
-                            {chatHistory.map((msg, idx) => (
-                                <div key={idx} className={`ask-message ${msg.role}`}>
-                                    <div className="ask-message-label">
-                                        {msg.role === 'user' ? 'You' : 'AI Assistant'}
+                            <div className="ask-chat-history">
+                                {chatHistory.map((msg, idx) => (
+                                    <div key={idx} className={`ask-message ${msg.role}`}>
+                                        <div className="ask-message-label">
+                                            {msg.role === 'user' ? 'You' : 'AI Assistant'}
+                                        </div>
+                                        <div className="ask-message-content">
+                                            {msg.role === 'ai' && msg.typing ? (
+                                                <TypingText
+                                                    text={msg.content}
+                                                    speed={20}
+                                                    onComplete={() => handleTypingComplete(idx)}
+                                                />
+                                            ) : (
+                                                msg.content
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="ask-message-content">
-                                        {msg.role === 'ai' && msg.typing ? (
-                                            <TypingText
-                                                text={msg.content}
-                                                speed={20}
-                                                onComplete={() => handleTypingComplete(idx)}
-                                            />
-                                        ) : (
-                                            msg.content
-                                        )}
+                                ))}
+
+                                {asking && (
+                                    <div className="ask-message ai">
+                                        <div className="ask-message-label">AI Assistant</div>
+                                        <div className="ask-thinking">
+                                            Thinking<span className="dots">.</span>
+                                        </div>
                                     </div>
+                                )}
+
+                                {chatHistory.length === 0 && !asking && (
+                                    <div className="node-explore-empty">
+                                        Has a specific question about this node? Ask above.
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* TEXT RESPONSE */}
+                    {activeTab === 'text' && (
+                        <motion.div key="text" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-text">
+                            {data.textResponse?.overview && (
+                                <p className="node-explore-overview">{data.textResponse.overview}</p>
+                            )}
+                            {/* Fallback: old explanation.overview */}
+                            {!data.textResponse?.overview && data.explanation?.overview && (
+                                <p className="node-explore-overview">{data.explanation.overview}</p>
+                            )}
+
+                            {data.textResponse?.sections?.map((section, i) => (
+                                <div key={i} className="node-explore-section-block">
+                                    {section.heading && <h3 className="node-explore-section-heading">{section.heading}</h3>}
+                                    {section.content && <p className="node-explore-section-body">{section.content}</p>}
+                                    {section.bullets?.length > 0 && (
+                                        <ul className="node-explore-bullets">
+                                            {section.bullets.map((b, j) => (
+                                                <li key={j}>
+                                                    <span className="node-explore-bullet">▸</span>
+                                                    {b}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             ))}
 
-                            {asking && (
-                                <div className="ask-message ai">
-                                    <div className="ask-message-label">AI Assistant</div>
-                                    <div className="ask-thinking">
-                                        Thinking<span className="dots">.</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {chatHistory.length === 0 && !asking && (
-                                <div className="node-explore-empty">
-                                    Has a specific question about this node? Ask above.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* TEXT RESPONSE */}
-                {activeTab === 'text' && (
-                    <div className="node-explore-text">
-                        {data.textResponse?.overview && (
-                            <p className="node-explore-overview">{data.textResponse.overview}</p>
-                        )}
-                        {/* Fallback: old explanation.overview */}
-                        {!data.textResponse?.overview && data.explanation?.overview && (
-                            <p className="node-explore-overview">{data.explanation.overview}</p>
-                        )}
-
-                        {data.textResponse?.sections?.map((section, i) => (
-                            <div key={i} className="node-explore-section-block">
-                                {section.heading && <h3 className="node-explore-section-heading">{section.heading}</h3>}
-                                {section.content && <p className="node-explore-section-body">{section.content}</p>}
-                                {section.bullets?.length > 0 && (
+                            {/* Fallback: old keyPoints */}
+                            {!data.textResponse && data.explanation?.keyPoints?.length > 0 && (
+                                <div className="node-explore-section-block">
+                                    <h3 className="node-explore-section-heading">Key Points</h3>
                                     <ul className="node-explore-bullets">
-                                        {section.bullets.map((b, j) => (
-                                            <li key={j}>
-                                                <span className="node-explore-bullet">▸</span>
-                                                {b}
-                                            </li>
+                                        {data.explanation.keyPoints.map((pt, i) => (
+                                            <li key={i}><span className="node-explore-bullet">▸</span>{pt}</li>
                                         ))}
                                     </ul>
-                                )}
-                            </div>
-                        ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
 
-                        {/* Fallback: old keyPoints */}
-                        {!data.textResponse && data.explanation?.keyPoints?.length > 0 && (
-                            <div className="node-explore-section-block">
-                                <h3 className="node-explore-section-heading">Key Points</h3>
-                                <ul className="node-explore-bullets">
-                                    {data.explanation.keyPoints.map((pt, i) => (
-                                        <li key={i}><span className="node-explore-bullet">▸</span>{pt}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                )}
+                    {/* EXTERNAL REFERENCES */}
+                    {activeTab === 'refs' && (
+                        <motion.div key="refs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-refs">
+                            {(data.externalLinks || []).map((link, i) => (
+                                <div key={i} className="node-explore-ref-item">
+                                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="node-explore-ref-title">
+                                        {link.title}
+                                    </a>
+                                    <span className="node-explore-ref-url">{link.url}</span>
+                                    {link.description && <p className="node-explore-ref-desc">{link.description}</p>}
+                                </div>
+                            ))}
+                            {(!data.externalLinks || data.externalLinks.length === 0) && (
+                                <p className="node-explore-empty">No external references available.</p>
+                            )}
+                        </motion.div>
+                    )}
 
-                {/* EXTERNAL REFERENCES */}
-                {activeTab === 'refs' && (
-                    <div className="node-explore-refs">
-                        {(data.externalLinks || []).map((link, i) => (
-                            <div key={i} className="node-explore-ref-item">
-                                <a href={link.url} target="_blank" rel="noopener noreferrer" className="node-explore-ref-title">
-                                    {link.title}
-                                </a>
-                                <span className="node-explore-ref-url">{link.url}</span>
-                                {link.description && <p className="node-explore-ref-desc">{link.description}</p>}
-                            </div>
-                        ))}
-                        {(!data.externalLinks || data.externalLinks.length === 0) && (
-                            <p className="node-explore-empty">No external references available.</p>
-                        )}
-                    </div>
-                )}
-
-                {/* IMAGES */}
-                {activeTab === 'images' && (() => {
-                    // Support both new 'images' field and old 'media' field (Groq fallback)
-                    const imgs = data.images?.length > 0
-                        ? data.images
-                        : (data.media || []).map(m => ({
-                            title: m.caption || 'Image',
-                            googleSearchUrl: `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(data.title || data.nodeLabel)}+${encodeURIComponent(m.caption || '')}`,
-                            description: m.caption || ''
-                        }));
-                    return (
-                        <div className="node-explore-images" >
-                            {
-                                imgs.map((img, i) => (
-                                    <a key={i} href={img.googleSearchUrl} target="_blank" rel="noopener noreferrer" className="node-explore-image-item">
-                                        <div className="node-explore-image-preview">
-                                            <img
-                                                src={`https://image.pollinations.ai/prompt/${encodeURIComponent(data.nodeLabel + " " + img.title)}?width=400&height=300&nologo=true`}
-                                                alt={img.title}
-                                                loading="lazy"
-                                                onError={(e) => {
-                                                    e.target.onerror = null;
-                                                    e.target.style.display = 'none';
-                                                    e.target.nextSibling.style.display = 'flex'; // Show fallback
-                                                }}
-                                            />
-                                            <div className="node-explore-image-fallback" style={{ display: 'none' }}>🔍</div>
-                                        </div>
+                    {/* IMAGES */}
+                    {activeTab === 'images' && (() => {
+                        // Support both new 'images' field and old 'media' field (Groq fallback)
+                        const imgs = data.images?.length > 0
+                            ? data.images
+                            : (data.media || []).map(m => ({
+                                title: m.caption || 'Image',
+                                googleSearchUrl: `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(data.title || data.nodeLabel)}+${encodeURIComponent(m.caption || '')}`,
+                                description: m.caption || ''
+                            }));
+                        return (
+                            <motion.div key="images" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-images" >
+                                {imgs.map((img, i) => (
+                                    <div key={i} className="node-explore-image-item">
+                                        <WikipediaImage
+                                            query={`${data.nodeLabel} ${img.title}`}
+                                            fallbackSeed={data.nodeLabel + img.title}
+                                            onClickView={setSelectedImageDialog}
+                                            onClickSource={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(data.nodeLabel + ' ' + img.title)}`)}
+                                        />
                                         <div className="node-explore-image-info">
                                             <span className="node-explore-image-title">{img.title}</span>
                                             {img.description && <p className="node-explore-image-desc">{img.description}</p>}
-                                            <span className="node-explore-image-cta">View on Google Images →</span>
                                         </div>
+                                    </div>
+                                ))}
+                                {imgs.length === 0 && (
+                                    <p className="node-explore-empty">No images available.</p>
+                                )}
+                            </motion.div>
+                        );
+                    })()}
+
+                    {/* VIDEOS */}
+                    {activeTab === 'videos' && (
+                        <motion.div key="videos" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-videos">
+                            {(data.videos || []).map((vid, i) => (
+                                <div key={i} className="node-explore-video-list-item">
+                                    <h4 className="node-explore-video-title">{vid.title}</h4>
+                                    <a href={vid.embedUrl || vid.url} target="_blank" rel="noopener noreferrer" className="node-explore-video-link">
+                                        {vid.embedUrl || vid.url}
                                     </a>
-                                ))
-                            }
-                            {imgs.length === 0 && (
-                                <p className="node-explore-empty">No images available.</p>
-                            )
-                            }
-                        </div>
-                    );
-                })()}
-
-                {/* VIDEOS */}
-                {activeTab === 'videos' && (
-                    <div className="node-explore-videos">
-                        {(data.videos || []).map((vid, i) => (
-                            <div key={i} className="node-explore-video-item">
-                                <div className="node-explore-video-embed">
-                                    <iframe
-                                        src={vid.embedUrl}
-                                        title={vid.title}
-                                        frameBorder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
+                                    {vid.description && <p className="node-explore-video-desc">{vid.description}</p>}
                                 </div>
-                                <h4 className="node-explore-video-title">{vid.title}</h4>
-                                {vid.description && <p className="node-explore-video-desc">{vid.description}</p>}
-                            </div>
-                        ))}
-                        {(!data.videos || data.videos.length === 0) && (
-                            <p className="node-explore-empty">No videos available.</p>
-                        )}
-                    </div>
-                )}
-
+                            ))}
+                            {(!data.videos || data.videos.length === 0) && (
+                                <p className="node-explore-empty">No videos available.</p>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
+
+            {/* FULLSCREEN IMAGE DIALOG */}
+            <AnimatePresence>
+                {selectedImageDialog && (
+                    <motion.div
+                        className="image-viewer-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSelectedImageDialog(null)}
+                    >
+                        <motion.div
+                            className="image-viewer-content"
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.9 }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <img src={selectedImageDialog} alt="Fullscreen View" />
+                            <button className="image-viewer-close" onClick={() => setSelectedImageDialog(null)}>✕</button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div >
     );
 };

@@ -6,72 +6,73 @@ import './TreeNodeCard.css';
 const TreeNodeCard = ({ node, onClick, level = 0 }) => {
     const Icon = getIconForType(node.type);
 
+    // Glowing vibrant themes inspired by the reference image
     const typeThemes = {
-        concept: '#6366f1',
-        prerequisite: '#f59e0b',
-        application: '#22c55e',
-        component: '#0ea5e9',
-        codeblock: '#ec4899',
-        documentsection: '#d946ef',
-        decision: '#ef4444',
-        logicphase: '#10b981',
-        datastore: '#f97316'
+        concept: { main: '#4f46e5', glow: '#6366f1' },       // Deep Indigo -> Bright Indigo
+        prerequisite: { main: '#db2777', glow: '#ec4899' },   // Deep Pink -> Bright Pink
+        application: { main: '#059669', glow: '#10b981' },    // Emerald
+        component: { main: '#0284c7', glow: '#0ea5e9' },      // Light Blue
+        codeblock: { main: '#7c3aed', glow: '#8b5cf6' },      // Violet
+        documentsection: { main: '#c026d3', glow: '#d946ef' },// Fuchsia
+        decision: { main: '#e11d48', glow: '#f43f5e' },       // Rose
+        logicphase: { main: '#0891b2', glow: '#06b6d4' },     // Cyan
+        datastore: { main: '#ea580c', glow: '#f97316' }       // Orange
     };
-    const themeColor = typeThemes[node.type?.toLowerCase()] || '#6366f1';
+    const theme = typeThemes[node.type?.toLowerCase()] || typeThemes.concept;
 
-    // Width based on level
-    const widthMap = {
-        0: 380,  // Root
-        1: 340,  // Level 1
-        2: 300   // Level 2+
-    };
-    const width = widthMap[Math.min(level, 2)] || 300;
+    // Fixed optimal width for horizontal cards
+    const width = 340;
 
     return (
         <motion.div
-            className="tree-node-text"
-            style={{ width: `${width}px`, cursor: 'pointer' }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            className="tree-node-card-glass"
+            style={{
+                width: `${width}px`,
+                cursor: 'pointer',
+                '--theme-glow': theme.glow,
+                '--theme-main': theme.main
+            }}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{
                 duration: 0.6,
                 delay: level * 0.15,
                 ease: [0.22, 1, 0.36, 1]
             }}
             whileHover={{
-                scale: 1.02,
-                boxShadow: `0 8px 30px ${themeColor}40`
+                scale: 1.03,
+                boxShadow: `0 0 30px ${theme.glow}40, inset 0 0 20px ${theme.main}20`
             }}
             onClick={() => onClick && onClick(node)}
+            data-testid={`node-${node.id}`}
         >
-            {/* SVG Icon Placeholder */}
-            <motion.div
-                className="svg-icon-placeholder"
-                style={{
-                    background: `linear-gradient(135deg, ${themeColor}30, ${themeColor}10)`,
-                    borderColor: `${themeColor}50`
-                }}
-                whileHover={{ scale: 1.05 }}
-            >
-                <Icon size={level === 0 ? 28 : 24} color={themeColor} />
-                <div className="icon-label">SVG</div>
-            </motion.div>
+            <div className="glass-capsule-content">
+                {/* Left Side: Squircle Icon with deep glow */}
+                <motion.div
+                    className="icon-squircle"
+                    style={{
+                        background: `linear-gradient(135deg, ${theme.main}40, ${theme.main}10)`,
+                        boxShadow: `0 0 15px ${theme.glow}40 inset, 0 0 10px ${theme.glow}20`,
+                        border: `1px solid ${theme.glow}50`
+                    }}
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                >
+                    <Icon size={22} color={theme.glow} strokeWidth={2.5} />
+                </motion.div>
 
-            {/* Main Concept Heading */}
-            <h3
-                className="concept-heading"
-                style={{
-                    fontSize: level === 0 ? '18px' : '16px',
-                    color: '#ffffff'
-                }}
-            >
-                {node.label}
-            </h3>
+                {/* Right Side: Text Container */}
+                <div className="node-text-content">
+                    <h3 className="node-title" style={{ textShadow: `0 0 10px ${theme.glow}80` }}>
+                        {node.label}
+                    </h3>
+                    <p className="node-snippet">
+                        {node.description ? node.description.length > 55 ? node.description.substring(0, 55) + '...' : node.description : 'Explore technical constraints and mechanisms...'}
+                    </p>
+                </div>
+            </div>
 
-            {/* Description */}
-            <p className="concept-description">
-                {node.description || `Complete description with more detailed with points and highlights about ${node.label}. This provides comprehensive insights into the fundamental concepts and technical aspects.`}
-            </p>
+            {/* Ambient Background Glow Layer */}
+            <div className="ambient-node-glow" style={{ background: theme.main }}></div>
         </motion.div>
     );
 };

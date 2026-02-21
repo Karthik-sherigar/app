@@ -40,6 +40,7 @@ function App() {
   const [theme, setTheme] = useState("dark");
   const [activeTab, setActiveTab] = useState("overview");
   const [externalSelectedNode, setExternalSelectedNode] = useState(null);
+  const [activeQuery, setActiveQuery] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [programmingCode, setProgrammingCode] = useState("");
   const [showChat, setShowChat] = useState(false);
@@ -54,6 +55,15 @@ function App() {
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [nodeExplanationLoading, setNodeExplanationLoading] = useState(false);
   const [nodeExploreTab, setNodeExploreTab] = useState('text');
+
+  // Refs for async callbacks
+  const graphDataRef = useRef(graphData);
+  const currentHistoryIdRef = useRef(currentHistoryId);
+  const explorationStackRef = useRef(explorationStack);
+
+  useEffect(() => { graphDataRef.current = graphData; }, [graphData]);
+  useEffect(() => { currentHistoryIdRef.current = currentHistoryId; }, [currentHistoryId]);
+  useEffect(() => { explorationStackRef.current = explorationStack; }, [explorationStack]);
 
   const fetchFullHistory = async () => {
     if (historyLoading) return;
@@ -131,6 +141,7 @@ function App() {
         // NEW: Set History ID and Clear Stack
         setCurrentHistoryId(data.historyId);
         setExplorationStack([]);
+        setActiveQuery(query);
 
         fetchHistory(); // Refresh history
         return; // Success
@@ -248,20 +259,17 @@ function App() {
 
   const restoreFromHistory = async (historyItem) => {
     try {
-      let dataToRestore = historyItem.response_data;
-
-      // If data is missing (lite record), fetch it now
-      if (!dataToRestore) {
-        setLoading(true);
-        const response = await axios.get(`${API}/history/${historyItem.id}`);
-        dataToRestore = response.data.response_data;
-        setLoading(false);
-      }
+      setLoading(true);
+      // ALWAYS fetch fresh data from the server because the stack may have been updated
+      const response = await axios.get(`${API}/history/${historyItem.id}`);
+      let dataToRestore = response.data.response_data;
+      setLoading(false);
 
       if (dataToRestore) {
         const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
         setGraphData(normalizedData);
         setMode(historyItem.mode);
+        setActiveQuery(historyItem.query);
 
         // NEW: Restore Stack and ID
         setExplorationStack(dataToRestore.explorationStack || []);
@@ -289,6 +297,25 @@ function App() {
       console.error(e);
     }
   };
+
+  const updateExplorationItem = useCallback((updatedExp) => {
+    // We compute the new stack from the ref to avoid stale closure state
+    const currentStack = explorationStackRef.current;
+    if (!currentStack) return;
+
+    const newStack = currentStack.map(item =>
+      item.nodeId === updatedExp.nodeId ? updatedExp : item
+    );
+    setExplorationStack(newStack);
+
+    // PERSIST safely with refs
+    if (currentHistoryIdRef.current && graphDataRef.current) {
+      axios.put(`${API}/history/${currentHistoryIdRef.current}`, {
+        ...graphDataRef.current,
+        explorationStack: newStack
+      }).catch(err => console.error("Failed to auto-save history:", err));
+    }
+  }, []);
 
   // ROUTING CHECK
   if (location.pathname.startsWith('/explore')) {
@@ -351,10 +378,10 @@ function App() {
                 {showChat && (
                   <motion.div
                     className="floating-chat-panel"
-                    initial={{ x: 400, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 400, opacity: 0 }}
-                    transition={{ type: "spring", damping: 25 }}
+                    initial={{ scale: 0.9, y: 50, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.95, y: 20, opacity: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
                   >
                     <div className="chat-header">
                       <h3>AI Analysis</h3>
@@ -380,6 +407,7 @@ function App() {
                 <>
                   <OrganicTreeGraph
                     graphData={graphData}
+                    activeQuery={activeQuery}
                     onNodeClick={handleNodeClick}
                     onExploreNode={async (nodeData) => {
                       if (!nodeData) return;
@@ -431,14 +459,15 @@ function App() {
                               timestamp: Date.now()
                             };
 
-                            // Update Stack
-                            const newStack = [...explorationStack, newExplanation];
+                            // Update Stack precisely via refs
+                            const currentStack = [...explorationStackRef.current];
+                            const newStack = [...currentStack, newExplanation];
                             setExplorationStack(newStack);
 
                             // PERSIST to History
-                            if (currentHistoryId) {
-                              axios.put(`${API}/history/${currentHistoryId}`, {
-                                ...graphData,
+                            if (currentHistoryIdRef.current) {
+                              axios.put(`${API}/history/${currentHistoryIdRef.current}`, {
+                                ...graphDataRef.current,
                                 explorationStack: newStack
                               }).catch(err => console.error("Failed to auto-save history:", err));
                             }
@@ -461,10 +490,25 @@ function App() {
                     loading={loading}
                   />
 
+                  {/* Creative End of Graph Divider */}
+                  <div className="graph-end-divider">
+                    <div className="divider-line"></div>
+                    <div className="divider-text">
+                      <span className="divider-icon">✧</span>
+                      End of the Graph
+                      <span className="divider-icon">✧</span>
+                    </div>
+                    <div className="divider-line"></div>
+                  </div>
+
                   {/* Below-graph exploration section — Stacked Explanations */}
                   <div className="exploration-stack">
                     {explorationStack.map((exp, index) => (
-                      <NodeExplorationItem key={exp.nodeId || index} data={exp} />
+                      <NodeExplorationItem
+                        key={`${currentHistoryId}-${exp.nodeId || index}`}
+                        data={exp}
+                        onUpdate={updateExplorationItem}
+                      />
                     ))}
 
                     {nodeExplanationLoading && (
@@ -481,6 +525,7 @@ function App() {
                   selectedNode={externalSelectedNode}
                   mode={mode}
                   loading={loading}
+                  activeQuery={activeQuery}
                 />
               )}
 
@@ -509,7 +554,7 @@ function App() {
 
         </main>
 
-        {mode === "query" && graphData.nodes.length === 0 && (
+        {mode === "query" && graphData.nodes.length === 0 && !loading && (
           <BottomInputBar
             onSubmit={(query) => generateGraph(query, "query")}
             loading={loading}

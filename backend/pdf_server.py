@@ -36,7 +36,22 @@ async def generate_graph_from_pdf(file: UploadFile = File(...)):
 
 {text}
 
-Format as JSON with "answer", "sections", "graph".
+Return ONLY valid JSON in this exact format:
+{{
+  "answer": "A comprehensive explanatory narration of the entire generated graph, explicitly detailing how each node connects to the others and the nature of their relationships.",
+  "sections": {{
+    "overview": "Brief 2-3 sentence overview of the subject.",
+    "summary": "A concise 2-3 paragraph summary of the detailed overview, capturing the essence of the graph's structure and concepts."
+  }},
+  "graph": {{
+    "nodes": [
+      {{"id": "concept_1", "label": "Concept", "type": "Concept", "description": "Desc", "importance": "high", "depth": 0}}
+    ],
+    "edges": [
+      {{"source": "concept_1", "target": "concept_2", "relation": "RELATED_TO"}}
+    ]
+  }}
+}}
 Types: DocumentSection, Concept, Definition, Example
 Relations: CONTAINS, EXPLAINS, RELATED_TO
 Create 15-30 nodes. Return valid JSON only."""

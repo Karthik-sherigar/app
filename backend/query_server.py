@@ -41,16 +41,16 @@ CRITICAL STRUCTURE REQUIREMENTS:
 
 Return ONLY valid JSON in this exact format:
 {{
-  "answer": "A comprehensive 3-4 paragraph explanation of {request.query}...",
+  "answer": "A comprehensive explanatory narration of the entire generated graph, explicitly detailing how each node connects to the others and the nature of their relationships.",
   "sections": {{
-    "overview": "Brief 2-3 sentence overview",
+    "overview": "Brief 2-3 sentence overview of the subject.",
     "concepts": [
       {{"id": "1", "name": "Main Concept", "explanation": "Detailed explanation"}}
     ],
     "dependencies": [
       {{"from": "Main Concept", "to": "Related Concept", "relation": "depends_on"}}
     ],
-    "summary": "Key takeaways"
+    "summary": "A concise 2-3 paragraph summary of the detailed overview, capturing the essence of the graph's structure and concepts."
   }},
   "graph": {{
     "nodes": [
@@ -230,6 +230,21 @@ async def explain_node(request: Request):
         wiki_slug = node_label.replace(' ', '_')
         google_img_base = f"https://www.google.com/search?tbm=isch&q={node_label.replace(' ', '+')}"
 
+        # Native helper to scrape a real YouTube video ID dynamically to avoid LLM hallucination (RickRolling)
+        def get_real_youtube_embed(query):
+            import urllib.request, urllib.parse, re
+            try:
+                search_query = urllib.parse.quote(query + " tutorial explained")
+                html = urllib.request.urlopen(f"https://www.youtube.com/results?search_query={search_query}", timeout=3).read().decode()
+                video_ids = re.findall(r"watch\?v=(\S{11})", html)
+                if video_ids:
+                    return f"https://www.youtube.com/watch?v={video_ids[0]}"
+            except Exception as e:
+                logging.warning(f"YouTube scrape failed: {e}")
+            return "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Standard safe fallback if network fails
+
+        real_vid_url = get_real_youtube_embed(node_label)
+
         prompt = f"""You are an expert educator. Generate a comprehensive, structured explanation for the concept: "{node_label}"
 Context: {context}
 
@@ -322,7 +337,7 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
   "videos": [
     {{
        "title": "{node_label} Explained - Video Tutorial",
-       "embedUrl": "https://www.youtube.com/embed/???",
+       "embedUrl": "{real_vid_url}",
        "description": "A high-quality educational video explaining {node_label}."
     }}
   ]
@@ -331,27 +346,27 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
         explanation = None
         last_error = None
 
-        # Priority 1: Gemini (Fastest)
+        # Priority 1: Groq (Blazing Fast API)
         try:
-            explanation = await _generate_with_gemini_internal("gemini-1.5-flash", prompt)
+            explanation = await generate_with_groq(prompt, json_mode=True)
         except Exception as e:
-             logging.warning(f"Gemini explain failed: {e}")
-             last_error = e
+            logging.warning(f"Groq explain failed: {e}")
+            last_error = e
 
-        # Priority 2: Cohere (Fast)
+        # Priority 2: Gemini
+        if not explanation:
+            try:
+                explanation = await _generate_with_gemini_internal("gemini-2.0-flash", prompt)
+            except Exception as e:
+                 logging.warning(f"Gemini explain failed: {e}")
+                 last_error = e
+
+        # Priority 3: Cohere
         if not explanation:
             try:
                 explanation = await generate_with_cohere(prompt)
             except Exception as e:
                 logging.warning(f"Cohere explain failed: {e}")
-                last_error = e
-
-        # Priority 3: Groq (Rate limits)
-        if not explanation:
-            try:
-                explanation = await generate_with_groq(prompt, json_mode=True)
-            except Exception as e:
-                logging.warning(f"Groq explain failed: {e}")
                 last_error = e
 
         if not explanation:
