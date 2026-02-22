@@ -143,6 +143,15 @@ async def delete_history_item(item_id: int):
         raise HTTPException(status_code=404, detail="History item not found")
     return {"message": "History item deleted"}
 
+@app.delete("/api/history")
+async def delete_all_history():
+    try:
+        session_service.clear_history()
+        return {"message": "All history deleted"}
+    except Exception as e:
+        logging.error(f"Error clearing history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear history")
+
 @app.put("/api/history/{item_id}")
 async def update_history_item(item_id: int, request: Request):
     try:

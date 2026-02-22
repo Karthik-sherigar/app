@@ -55,6 +55,7 @@ function App() {
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [nodeExplanationLoading, setNodeExplanationLoading] = useState(false);
   const [nodeExploreTab, setNodeExploreTab] = useState('text');
+  const [isTemporary, setIsTemporary] = useState(false);
 
   // Refs for async callbacks
   const graphDataRef = useRef(graphData);
@@ -126,7 +127,8 @@ function App() {
       try {
         const response = await axios.post(`${API}/generate-graph`, {
           query,
-          mode: selectedMode || mode
+          mode: selectedMode || mode,
+          is_temporary: isTemporary
         });
 
         const data = response.data;
@@ -233,8 +235,19 @@ function App() {
     setShowExplanation(false);
     setExplorationStack([]);
     setCurrentHistoryId(null);
-    toast.info("Map cleared.");
   }, []);
+
+  const handleNewQuery = useCallback(() => {
+    resetGraph();
+    setIsTemporary(false);
+    toast.info("New chart initialized.");
+  }, [resetGraph]);
+
+  const handleTemporaryQuery = useCallback(() => {
+    resetGraph();
+    setIsTemporary(true);
+    toast.info("Temporary mode active. Queries won't be saved to DB.");
+  }, [resetGraph]);
 
   const handleNodeClick = React.useCallback((node) => {
     // Standard click handler
@@ -298,6 +311,21 @@ function App() {
     }
   };
 
+  const deleteAllHistory = async () => {
+    try {
+      if (window.confirm("WARNING: Are you sure you want to delete ALL chat history permanently? This action will permanently erase all data from the database.")) {
+        await axios.delete(`${API}/history`);
+        setHistory([]);
+        setExplorationStack([]);
+        setCurrentHistoryId(null);
+        toast.success("All chat history permanently deleted.");
+      }
+    } catch (e) {
+      toast.error("Failed to delete all history.");
+      console.error(e);
+    }
+  };
+
   const updateExplorationItem = useCallback((updatedExp) => {
     // We compute the new stack from the ref to avoid stale closure state
     const currentStack = explorationStackRef.current;
@@ -338,6 +366,9 @@ function App() {
           mode={mode}
           generateGraph={generateGraph}
           generateGraphFromPDF={generateGraphFromPDF}
+          handleNewQuery={handleNewQuery}
+          handleTemporaryQuery={handleTemporaryQuery}
+          deleteAllHistory={deleteAllHistory}
           explainConfusion={() => {
             if (selectedNode) {
               explainConfusion(selectedNode.label);
@@ -491,15 +522,17 @@ function App() {
                   />
 
                   {/* Creative End of Graph Divider */}
-                  <div className="graph-end-divider">
-                    <div className="divider-line"></div>
-                    <div className="divider-text">
-                      <span className="divider-icon">✧</span>
-                      End of the Graph
-                      <span className="divider-icon">✧</span>
+                  {(!loading && graphData.nodes?.length > 0) && (
+                    <div className="graph-end-divider">
+                      <div className="divider-line"></div>
+                      <div className="divider-text">
+                        <span className="divider-icon">✧</span>
+                        End of the Graph
+                        <span className="divider-icon">✧</span>
+                      </div>
+                      <div className="divider-line"></div>
                     </div>
-                    <div className="divider-line"></div>
-                  </div>
+                  )}
 
                   {/* Below-graph exploration section — Stacked Explanations */}
                   <div className="exploration-stack">

@@ -140,9 +140,12 @@ Return ONLY a JSON array of strings: {{"visual_prompts": ["cybernetic neural net
         if "edges" in result["graph"]:
              neo4j_service.insert_relationships(result["graph"]["edges"])
 
-        history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode)
-        if history_item:
-            result["historyId"] = history_item.id
+        if not request.is_temporary:
+             history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode)
+             if history_item:
+                 result["historyId"] = history_item.id
+        else:
+             result["historyId"] = None
         
         return result
 

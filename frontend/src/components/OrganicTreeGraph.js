@@ -60,9 +60,34 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
 
+        const handleExport = () => {
+            const target = document.querySelector('.zoom-pan-container');
+            if (!target) return;
+            import('html-to-image').then(htmlToImage => {
+                htmlToImage.toPng(target, {
+                    backgroundColor: '#0f172a',
+                    pixelRatio: window.devicePixelRatio || 2,
+                    style: {
+                        transform: 'scale(1)',
+                        transformOrigin: 'top left',
+                    }
+                }).then(dataUrl => {
+                    const a = document.createElement('a');
+                    a.href = dataUrl;
+                    a.download = 'Knowledge-Graph-Export.png';
+                    a.click();
+                }).catch(err => {
+                    console.error("Export failed:", err);
+                });
+            });
+        };
+
+        window.addEventListener('export-organic-graph', handleExport);
+
         return () => {
             window.removeEventListener('scroll', handleScroll, true);
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            window.removeEventListener('export-organic-graph', handleExport);
         };
     }, []);
 

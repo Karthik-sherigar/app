@@ -42,6 +42,7 @@ class GraphData(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     mode: str
+    is_temporary: Optional[bool] = False
 
 class ExpandNodeRequest(BaseModel):
     node_id: str

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Send, Trash2, MessageCircle, History, FileText, Menu, RotateCcw, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Upload, Send, Trash2, History, FileText, Menu, Download, ChevronLeft, ChevronRight, Plus, Ghost, MessageCircle, RotateCcw } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import Editor from "@monaco-editor/react";
 
@@ -7,6 +7,9 @@ function Sidebar({
   mode,
   generateGraph,
   generateGraphFromPDF,
+  handleNewQuery,
+  handleTemporaryQuery,
+  deleteAllHistory,
   explainConfusion,
   resetGraph,
   history,
@@ -152,50 +155,96 @@ function Sidebar({
             <span>ACTIONS</span>
           </h3>
           <div className="action-buttons">
-            <button
-              className="btn-action"
-              onClick={explainConfusion}
-              data-testid="explain-confusion-btn"
-            >
-              <MessageCircle size={16} />
-              <span>Explain Confusion</span>
-            </button>
-            <button
-              className="btn-action"
-              onClick={resetGraph}
-              data-testid="reset-graph-btn"
-            >
-              <RotateCcw size={16} />
-              <span>Reset Graph</span>
-            </button>
-            <button
-              className="btn-action"
-              onClick={() => {
-                const canvas = document.querySelector('.cy-container canvas');
-                if (canvas) {
-                  canvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'knowledge-graph.png';
-                    a.click();
-                  });
-                }
-              }}
-              data-testid="export-graph-btn"
-            >
-              <Download size={16} />
-              <span>Export PNG</span>
-            </button>
+            {mode === 'query' ? (
+              <>
+                <button
+                  className="btn-action"
+                  onClick={handleNewQuery}
+                  data-testid="new-query-btn"
+                >
+                  <Plus size={16} />
+                  <span>New Query</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={handleTemporaryQuery}
+                  data-testid="temporary-query-btn"
+                  title="Starts a temporary session that won't be saved"
+                >
+                  <Ghost size={16} />
+                  <span>Temporary Query</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={() => {
+                    window.dispatchEvent(new Event('export-organic-graph'));
+                  }}
+                  data-testid="export-graph-btn"
+                >
+                  <Download size={16} />
+                  <span>Export Graph</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn-action"
+                  onClick={explainConfusion}
+                  data-testid="explain-confusion-btn"
+                >
+                  <MessageCircle size={16} />
+                  <span>Explain Confusion</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={resetGraph}
+                  data-testid="reset-graph-btn"
+                >
+                  <RotateCcw size={16} />
+                  <span>Reset Graph</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={() => {
+                    const canvas = document.querySelector('.cy-container canvas');
+                    if (canvas) {
+                      canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'knowledge-graph.png';
+                        a.click();
+                      });
+                    }
+                  }}
+                  data-testid="export-graph-btn"
+                >
+                  <Download size={16} />
+                  <span>Export PNG</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {/* HISTORY SECTION */}
         <div className="sidebar-section history-section">
-          <h3 className="section-title">
-            <History size={16} />
-            <span>RECENT HISTORY</span>
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 className="section-title" style={{ margin: 0 }}>
+              <History size={16} />
+              <span>RECENT HISTORY</span>
+            </h3>
+            {mode === 'query' && history.length > 0 && (
+              <button
+                className="delete-all-history-btn"
+                onClick={deleteAllHistory}
+                title="Delete All History"
+                style={{ background: 'none', border: 'none', color: 'rgba(239, 68, 68, 0.8)', cursor: 'pointer', padding: '4px' }}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
           <div className="history-list" data-testid="history-list">
             {history
               .filter(item => item.mode === mode)
