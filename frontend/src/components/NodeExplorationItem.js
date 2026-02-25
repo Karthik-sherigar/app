@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import TypingText from './TypingText';
 import SkeletonLoader from './SkeletonLoader';
 import '../App.css';
@@ -69,71 +70,9 @@ const WikipediaImage = ({ query, fallbackSeed, onClickView, onClickSource }) => 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const NodeExplorationItem = ({ data, onUpdate }) => {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState(data.activeTab || 'text');
-    const [question, setQuestion] = useState('');
-    const [chatHistory, setChatHistory] = useState(data.chatHistory || []); // Array of { role: 'user'|'ai', content: string, typing?: boolean }
-    const [asking, setAsking] = useState(false);
     const [selectedImageDialog, setSelectedImageDialog] = useState(null);
-    const chatEndRef = useRef(null);
-
-    const scrollToBottom = () => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [chatHistory, asking]); // Added useEffect
-
-    const handleAsk = async () => {
-        if (!question.trim()) return;
-
-        const currentQuestion = question;
-        setQuestion(''); // Clear input immediately
-        setAsking(true);
-
-        // Add user message to history
-        const updatedHistoryUser = [...chatHistory, { role: 'user', content: currentQuestion }];
-        setChatHistory(updatedHistoryUser);
-        if (onUpdate) onUpdate({ ...data, chatHistory: updatedHistoryUser });
-
-        try {
-            // Include previous history in context? For now, we just send node context.
-            // Feature improvement: Append chat history to context for multi-turn.
-            const res = await axios.post(`${API}/ask-node`, { // Changed API_BASE_URL to API, and node to data
-                nodeLabel: data.nodeLabel || data.title, // Changed node.label || node.id to data.nodeLabel || data.title
-                context: JSON.stringify(data.textResponse || data.explanation || {}), // Changed node.explanation to data.textResponse || data.explanation
-                question: currentQuestion
-            });
-
-            // Add AI message with typing effect
-            const finalHistory = [...updatedHistoryUser, {
-                role: 'ai',
-                content: res.data.answer,
-                typing: true
-            }];
-            setChatHistory(finalHistory);
-            if (onUpdate) onUpdate({ ...data, chatHistory: finalHistory });
-        } catch (e) {
-            console.error(e);
-            const errorMsg = e.response?.data?.detail || "Failed to get an answer. Please try again.";
-            const errorHistory = [...updatedHistoryUser, { role: 'ai', content: errorMsg, typing: true }];
-            setChatHistory(errorHistory);
-            if (onUpdate) onUpdate({ ...data, chatHistory: errorHistory });
-        } finally {
-            setAsking(false);
-        }
-    };
-
-    const handleTypingComplete = (index) => {
-        setChatHistory(prev => {
-            const newHistory = [...prev];
-            if (newHistory[index]) {
-                newHistory[index] = { ...newHistory[index], typing: false };
-            }
-            if (onUpdate) onUpdate({ ...data, chatHistory: newHistory });
-            return newHistory;
-        });
-    };
 
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
@@ -153,12 +92,6 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
 
             {/* Tab bar */}
             <div className="node-explore-tabs">
-                <button
-                    className={`node-explore-tab-btn${activeTab === 'ask' ? ' active' : ''}`}
-                    onClick={() => handleTabChange('ask')}
-                >
-                    Ask
-                </button>
                 {[
                     { id: 'text', label: 'Text Response' },
                     { id: 'refs', label: 'External References' },
@@ -177,7 +110,7 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
                 {/* Explore More Button (Last) */}
                 <button
                     className="node-explore-tab-btn explore-more-btn"
-                    onClick={() => window.open(`/explore/${data.nodeId}`, '_blank')}
+                    onClick={() => navigate(`/explore/${data.nodeId}${data.rootQuery ? `?topic=${encodeURIComponent(data.rootQuery)}` : ''}`)}
                     style={{ marginLeft: 'auto', backgroundColor: 'rgba(50, 150, 255, 0.2)', color: '#4da6ff' }}
                 >
                     Explore More ↗
@@ -187,65 +120,6 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
             {/* Tab content */}
             <div className="node-explore-content">
                 <AnimatePresence mode="wait">
-
-                    {/* ASK TAB */}
-                    {activeTab === 'ask' && (
-                        <motion.div key="ask" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-ask">
-                            <div className="ask-input-wrapper">
-                                <input
-                                    type="text"
-                                    className="ask-input"
-                                    value={question}
-                                    onChange={(e) => setQuestion(e.target.value)}
-                                    placeholder={`Ask about ${data.nodeLabel}...`}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-                                />
-                                <button
-                                    className="ask-send-btn"
-                                    onClick={handleAsk}
-                                    disabled={asking || !question.trim()}
-                                >
-                                    <Send size={18} />
-                                </button>
-                            </div>
-
-                            <div className="ask-chat-history">
-                                {chatHistory.map((msg, idx) => (
-                                    <div key={idx} className={`ask-message ${msg.role}`}>
-                                        <div className="ask-message-label">
-                                            {msg.role === 'user' ? 'You' : 'AI Assistant'}
-                                        </div>
-                                        <div className="ask-message-content">
-                                            {msg.role === 'ai' && msg.typing ? (
-                                                <TypingText
-                                                    text={msg.content}
-                                                    speed={20}
-                                                    onComplete={() => handleTypingComplete(idx)}
-                                                />
-                                            ) : (
-                                                msg.content
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-
-                                {asking && (
-                                    <div className="ask-message ai">
-                                        <div className="ask-message-label">AI Assistant</div>
-                                        <div className="ask-thinking">
-                                            Thinking<span className="dots">.</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {chatHistory.length === 0 && !asking && (
-                                    <div className="node-explore-empty">
-                                        Has a specific question about this node? Ask above.
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    )}
 
                     {/* TEXT RESPONSE */}
                     {activeTab === 'text' && (

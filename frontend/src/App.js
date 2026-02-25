@@ -83,16 +83,24 @@ function App() {
     }
   };
 
-  // Mode Isolation: Reset graph when switching modes
-  useEffect(() => {
+  const handleModeChange = (newMode) => {
+    // Synchronously clear data used by other components
     setGraphData({ nodes: [], edges: [] });
     setSelectedNode(null);
     setShowNodePanel(false);
     setShowExplanation(false);
     setShowChat(false);
-    setHasNewResponse(false);
     setExplorationStack([]);
     setCurrentHistoryId(null);
+    setMode(newMode);
+  };
+
+  // Mode Isolation: Secondary fallback reset
+  useEffect(() => {
+    if (graphData.nodes?.length > 0) {
+      setGraphData({ nodes: [], edges: [] });
+    }
+    setHasNewResponse(false);
   }, [mode]);
 
   const checkBackendHealth = useCallback(async () => {
@@ -129,11 +137,11 @@ function App() {
           query,
           mode: selectedMode || mode,
           is_temporary: isTemporary
-        });
+        }, { timeout: 45000 });
 
         const data = response.data;
         // Merge graph data with metadata like 'answer' and 'sections'
-        const normalizedData = data.graph ? { ...data, nodes: data.graph.nodes, edges: data.graph.edges } : data;
+        const normalizedData = data.graph ? { ...data, nodes: data.graph.nodes || [], edges: data.graph.edges || [] } : data;
         setGraphData(normalizedData);
         setSelectedNode(null);
         setShowNodePanel(false);
@@ -171,7 +179,7 @@ function App() {
       });
 
       const data = response.data;
-      const normalizedData = data.graph ? { ...data.graph, ...data } : data;
+      const normalizedData = data.graph ? { ...data.graph, nodes: data.graph.nodes || [], edges: data.graph.edges || [] } : data;
       setGraphData(normalizedData);
 
       if (!showChat) {
@@ -194,7 +202,7 @@ function App() {
       const response = await axios.post(`${API}/expand-node`, {
         node_id: nodeId,
         node_label: nodeLabel,
-        current_graph: { nodes: graphData.nodes, edges: graphData.edges }
+        current_graph: { nodes: graphData.nodes || [], edges: graphData.edges || [] }
       });
 
       setGraphData(prev => ({
@@ -264,7 +272,7 @@ function App() {
   }, [graphData]);
 
   const handleExpandConcept = async (nodeId) => {
-    const node = graphData.nodes?.find(n => n.id === nodeId);
+    const node = (graphData.nodes || []).find(n => n.id === nodeId);
     if (node) {
       await expandNode(node.id, node.label);
     }
@@ -354,7 +362,7 @@ function App() {
     <div className={`app ${theme}`} data-testid="app-container">
       <Navbar
         mode={mode}
-        setMode={setMode}
+        setMode={handleModeChange}
         backendStatus={backendStatus}
         resetGraph={resetGraph}
         theme={theme}
@@ -487,6 +495,7 @@ function App() {
                               ...data,
                               nodeId: nodeData.id,
                               nodeLabel: nodeData.label,
+                              rootQuery: activeQuery, // Store the main topic for deep dive context
                               timestamp: Date.now()
                             };
 
@@ -522,7 +531,7 @@ function App() {
                   />
 
                   {/* Creative End of Graph Divider */}
-                  {(!loading && graphData.nodes?.length > 0) && (
+                  {(!loading && (graphData.nodes || []).length > 0) && (
                     <div className="graph-end-divider">
                       <div className="divider-line"></div>
                       <div className="divider-text">
@@ -587,7 +596,7 @@ function App() {
 
         </main>
 
-        {mode === "query" && graphData.nodes.length === 0 && !loading && (
+        {mode === "query" && (graphData.nodes || []).length === 0 && !loading && (
           <BottomInputBar
             onSubmit={(query) => generateGraph(query, "query")}
             loading={loading}

@@ -414,35 +414,40 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
         container.removeEventListener('wheel', handleWheel);
       }
 
-      // Destroy all tooltips
-      if (cy && !cy.destroyed()) {
-        cy.nodes().forEach(node => {
-          const tip = node.data('tippy');
-          if (tip) tip.destroy();
-        });
-      }
-
-      if (layoutRef.current) {
-        try { layoutRef.current.stop(); } catch (e) { }
-        layoutRef.current = null;
-      }
-
-      if (cyInstance.current) {
+      // Preserve reference for final cleanup phase
+      const cyToDestroy = cyInstance.current;
+      
+      if (cyToDestroy && !cyToDestroy.destroyed()) {
         try {
-          if (!cyInstance.current.destroyed()) {
-            cyInstance.current.stop(true, true);
-            cyInstance.current.elements().remove();
-            cyInstance.current.removeAllListeners();
-            cyInstance.current.destroy();
+          // 1. Destroy all tooltips from DOM and listeners
+          cyToDestroy.nodes().forEach(node => {
+            const tooltip = node.data('tooltip');
+            if (tooltip && tooltip.parentNode) {
+              tooltip.remove();
+            }
+            const updater = node.data('tooltipUpdate');
+            if (updater) cyToDestroy.off('pan zoom', updater);
+          });
+
+          // 2. Stop any active layout
+          if (layoutRef.current) {
+            layoutRef.current.stop();
+            layoutRef.current = null;
           }
+
+          // 3. Final teardown
+          cyToDestroy.stop(true, true);
+          cyToDestroy.elements().remove();
+          cyToDestroy.removeAllListeners();
+          cyToDestroy.destroy();
         } catch (e) {
-          console.warn("Cleanup error:", e);
+          console.warn("Cytoscape hard-cleanup warning:", e);
         }
-        cyInstance.current = null;
       }
+      cyInstance.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphData]);
+  }, [graphData, mode]);
 
   // Handle selected node
   useEffect(() => {

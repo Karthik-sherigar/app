@@ -62,6 +62,11 @@ class AskNodeRequest(BaseModel):
     context: str
     question: str
 
+class DeepDiveRequest(BaseModel):
+    nodeId: str
+    nodeLabel: str
+    context: Optional[str] = ""
+
 class HistoryItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -123,14 +128,14 @@ def initialize_providers():
     global groq_client, cohere_client
     if os.environ.get("GROQ_API_KEY"):
         try:
-            # max_retries=0 ensures instant failure on rate limit instead of sleeping
-            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"), max_retries=0)
+            # Reverting max_retries=0 as it may not be supported in some versions
+            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         except Exception as e:
             logging.error(f"Failed to initialize Groq: {e}")
     if os.environ.get("COHERE_API_KEY"):
         try:
-            # max_retries=0 ensures instant failure on rate limit
-            cohere_client = cohere.Client(api_key=os.environ.get("COHERE_API_KEY"), max_retries=0)
+            # Reverting max_retries=0
+            cohere_client = cohere.Client(api_key=os.environ.get("COHERE_API_KEY"))
         except Exception as e:
             logging.error(f"Failed to initialize Cohere: {e}")
 
@@ -216,13 +221,17 @@ async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_ind
     except asyncio.TimeoutError:
         raise Exception("Gemini overall timeout exceeded. Failing over to next provider.")
 
-async def generate_with_fallback(preferred_model, prompt):
+async def generate_with_fallback(preferred_model, prompt, json_mode=False):
     try:
+        # If we need JSON, ensure prompt suggests it for safety when falling back
+        if json_mode and "json" not in prompt.lower():
+            prompt += "\nReturn ONLY valid JSON."
+            
         return await _generate_with_gemini_internal(preferred_model, prompt)
     except Exception as e:
         logging.warning(f"Gemini failed: {e}. Trying Groq.")
     try:
-        if groq_client: return await generate_with_groq(prompt)
+        if groq_client: return await generate_with_groq(prompt, json_mode=json_mode)
     except Exception as e:
         logging.warning(f"Groq failed: {e}. Trying Cohere.")
     try:

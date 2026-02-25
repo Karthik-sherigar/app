@@ -195,6 +195,149 @@ async def ask_node_proxy(request: Request):
         logging.error(f"Proxy error (ask-node): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/deep-dive")
+async def deep_dive_proxy(request: Request):
+    """Proxy endpoint for immersive deep dives with context-aware caching"""
+    try:
+        body = await request.json()
+        node_id = body.get("nodeId")
+        context = body.get("context", "")
+        logging.info(f"Deep-dive request for node: {node_id}, context: {context}")
+        
+        # Create a unique cache key that includes context to prevent collisions
+        # (e.g., 'causes_of_origin' for WW2 vs 'causes_of_origin' for a CS bug)
+        cache_key = f"{node_id}:{context}" if context else node_id
+        
+        if node_id:
+            cached = session_service.get_deep_dive(cache_key)
+            if cached:
+                logging.info(f"Serving deep dive from cache for: {cache_key}")
+                return json.loads(cached.data)
+
+        target_url = f"{QUERY_SERVER_URL}/api/deep-dive"
+        response = await client.post(target_url, json=body, timeout=90.0)
+        data = response.json()
+        
+        # Cache the result with the unique key
+        if node_id and response.status_code == 200:
+            session_service.save_deep_dive(cache_key, json.dumps(data))
+            
+        return data
+    except Exception as e:
+        logging.error(f"Proxy error (deep-dive): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-image")
+async def generate_image(request: Request):
+    """Generate an image using Freepik's Mystic AI API with caching"""
+    import asyncio
+
+    FREEPIK_API_KEY = os.environ.get("FREEPIK_API_KEY", "")
+    if not FREEPIK_API_KEY:
+        raise HTTPException(status_code=500, detail="Freepik API key not configured")
+
+    try:
+        body = await request.json()
+        prompt = body.get("prompt", "")
+        node_id = body.get("nodeId")
+        context = body.get("context", "")
+        
+        if not prompt:
+            raise HTTPException(status_code=400, detail="Prompt is required")
+
+        # Create a unique cache key
+        cache_key = f"{node_id}:{context}" if context else node_id
+
+        # Check Cache
+        if node_id:
+            cached = session_service.get_deep_dive(cache_key)
+            if cached:
+                cached_data = json.loads(cached.data)
+                if cached_data.get("imageUrl"):
+                    logging.info(f"Serving image from cache for: {cache_key}")
+                    return {"image_url": cached_data["imageUrl"]}
+
+        headers = {
+            "x-freepik-api-key": FREEPIK_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+        # Step 1: Create image generation task
+        create_payload = {
+            "prompt": prompt,
+            "negative_prompt": "text, watermarks, blurry, low quality",
+            "aspect_ratio": "square_1_1",
+            "model": "realism",
+            "filter_nsfw": True
+        }
+
+        logging.info(f"Creating Freepik task for prompt: {prompt}")
+        create_resp = await client.post(
+            "https://api.freepik.com/v1/ai/mystic",
+            headers=headers,
+            json=create_payload,
+            timeout=30.0
+        )
+
+        if create_resp.status_code not in (200, 201, 202):
+            logging.error(f"Freepik create error {create_resp.status_code}: {create_resp.text}")
+            raise HTTPException(status_code=502, detail=f"Freepik API error: {create_resp.text}")
+
+        create_data = create_resp.json()
+        task_id = create_data.get("data", {}).get("task_id") or create_data.get("task_id")
+
+        if not task_id:
+            logging.error(f"No task_id in Freepik response: {create_data}")
+            raise HTTPException(status_code=502, detail="No task_id returned from Freepik API")
+
+        # Step 2: Poll for completion (max 90s)
+        max_polls = 30
+        for poll_num in range(max_polls):
+            await asyncio.sleep(3)
+
+            status_resp = await client.get(
+                f"https://api.freepik.com/v1/ai/mystic/{task_id}",
+                headers=headers,
+                timeout=15.0
+            )
+
+            if status_resp.status_code != 200:
+                logging.warning(f"Freepik poll status error {status_resp.status_code}: {status_resp.text}")
+                continue
+
+            status_data = status_resp.json()
+            status = status_data.get("data", {}).get("status") or status_data.get("status")
+
+            if status == "COMPLETED":
+                images = status_data.get("data", {}).get("generated", [])
+                if images:
+                    # generated is a list of URL strings per official docs
+                    image_url = images[0] if isinstance(images[0], str) else images[0].get("url", "")
+                    
+                    # Update cache with imageUrl
+                    if node_id:
+                        cached = session_service.get_deep_dive(cache_key)
+                        if cached:
+                            cached_data = json.loads(cached.data)
+                            cached_data["imageUrl"] = image_url
+                            session_service.save_deep_dive(cache_key, json.dumps(cached_data))
+
+                    return {"image_url": image_url}
+                break
+            elif status in ("FAILED", "ERROR", "CONTENT_MODERATION"):
+                raise HTTPException(status_code=502, detail=f"Freepik image generation failed with status: {status}")
+
+        raise HTTPException(status_code=504, detail="Image generation timed out")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Image generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/health")
 async def health_check():
     return {

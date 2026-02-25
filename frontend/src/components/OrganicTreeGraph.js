@@ -139,14 +139,15 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
     // Build tree hierarchy from graph data
     const buildTreeHierarchy = (nodes, edges) => {
         if (!nodes || nodes.length === 0) return null;
+        const safeEdges = edges || [];
 
         // Find root node (node with no incoming edges)
-        const incomingEdges = new Set(edges.map(e => e.target));
+        const incomingEdges = new Set(safeEdges.map(e => e.target));
         const mainRoot = nodes.find(n => !incomingEdges.has(n.id)) || nodes[0];
 
         // Build adjacency list
         const childrenMap = {};
-        edges.forEach(edge => {
+        safeEdges.forEach(edge => {
             if (!childrenMap[edge.source]) {
                 childrenMap[edge.source] = [];
             }
@@ -195,56 +196,66 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
         if (!tree) return [];
 
         const positions = [];
-        const VERTICAL_SPACING = 250;
+        const VERTICAL_SPACING = 360; // Balanced for depth
+        const HORIZONTAL_SPACING = 480; // Compact but clear
         const NODE_WIDTH = 340;
-        const HORIZONTAL_MARGIN = 40;
 
-        // First pass: assign depth and group nodes by depth
-        const nodesByLevel = {};
-        let maxDepth = 0;
+        let leafCount = 0;
 
-        const assignDepth = (node, depth = 0) => {
+        // Recursive Pass: Calculate X based on subtree breadth (leaves)
+        const layoutPass = (node, depth = 0) => {
             if (!node) return;
-            node.level = depth;
-            maxDepth = Math.max(maxDepth, depth);
 
-            if (!nodesByLevel[depth]) nodesByLevel[depth] = [];
-            nodesByLevel[depth].push(node);
-
-            if (node.children) {
-                node.children.forEach(child => assignDepth(child, depth + 1));
+            if (!node.children || node.children.length === 0) {
+                // Leaf Node: Assign sequential X position
+                node.x = leafCount * HORIZONTAL_SPACING;
+                leafCount++;
+            } else {
+                // Parent Node: Center it over its children
+                node.children.forEach(child => layoutPass(child, depth + 1));
+                
+                const firstX = node.children[0].x;
+                const lastX = node.children[node.children.length - 1].x;
+                node.x = (firstX + lastX) / 2;
             }
+
+            node.y = 100 + (depth * VERTICAL_SPACING);
+            node.level = depth;
         };
 
-        assignDepth(tree);
+        // Initialize recursion
+        layoutPass(tree);
 
-        // Second pass: assign X coordinates to spread nodes evenly
-        Object.keys(nodesByLevel).forEach((level) => {
-            const depth = parseInt(level, 10);
-            const nodesInLevel = nodesByLevel[depth];
-            const levelCount = nodesInLevel.length;
+        // Collect all processed nodes for bounds calculation
+        const nodesList = [];
+        const collect = (node) => {
+            if (!node) return;
+            nodesList.push(node);
+            node.children?.forEach(collect);
+        };
+        collect(tree);
 
-            // Calculate total width needed for this level
-            const totalWidth = (levelCount * NODE_WIDTH) + ((levelCount - 1) * HORIZONTAL_MARGIN);
+        // Find bounding box
+        const nodeXPositions = nodesList.map(n => n.x);
+        const minX = Math.min(...nodeXPositions);
+        const maxX = Math.max(...nodeXPositions);
+        const treeWidth = maxX - minX;
 
-            // Start X offset so the group is centered in the container
-            let startX = (containerWidth - totalWidth) / 2 + (NODE_WIDTH / 2);
+        // Final Mapping: Center the root node specifically
+        const rootX = tree.x;
+        const centerOffset = (containerWidth / 2) - rootX;
 
-            // If the container is too narrow, start from left edge with padding
-            if (startX < NODE_WIDTH / 2) {
-                startX = NODE_WIDTH / 2 + 20;
-            }
+        // Ensure we don't push nodes off the left edge (keep minimum 100px padding)
+        // Find the absolute min X if we were to apply centerOffset
+        const absoluteMinX = minX + centerOffset;
+        const finalOffset = absoluteMinX < 100 ? (centerOffset + (100 - absoluteMinX)) : centerOffset;
 
-            nodesInLevel.forEach((node, index) => {
-                // Add staggered subtle vertical offsets for organic feel
-                const organicYOffset = (index % 2 === 0 && levelCount > 1) ? 30 : 0;
-
-                positions.push({
-                    ...node,
-                    x: startX + (index * (NODE_WIDTH + HORIZONTAL_MARGIN)),
-                    y: 120 + (depth * VERTICAL_SPACING) + organicYOffset,
-                    level: depth
-                });
+        nodesList.forEach(node => {
+            positions.push({
+                ...node,
+                x: node.x + finalOffset,
+                y: node.y,
+                level: node.level
             });
         });
 

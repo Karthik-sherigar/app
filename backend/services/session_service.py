@@ -10,8 +10,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Database Setup
-DATABASE_URL = "sqlite:///./database.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+DB_TYPE = os.getenv("DB_TYPE", "sqlite").lower()
+
+if DB_TYPE == "mysql":
+    user = os.getenv("MYSQL_USER", "root")
+    password = os.getenv("MYSQL_PASSWORD", "root")
+    host = os.getenv("MYSQL_HOST", "localhost")
+    port = os.getenv("MYSQL_PORT", "3306")
+    db_name = os.getenv("MYSQL_DB", "eyephish_db")
+    # Using pymysql as the driver
+    DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
+    engine = create_engine(DATABASE_URL)
+else:
+    DATABASE_URL = os.getenv("SQLITE_URL", "sqlite:///./database.db")
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -22,6 +35,12 @@ class QueryHistory(Base):
     query = Column(String, index=True)
     mode = Column(String, default="query") # Added mode column
     answer = Column(Text)  # JSON string or plain text
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+class DeepDiveCache(Base):
+    __tablename__ = "deep_dive_cache"
+    node_id = Column(String, primary_key=True, index=True)
+    data = Column(Text)  # JSON string of the deep dive content
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class SessionService:
@@ -129,3 +148,33 @@ class SessionService:
         except Exception as e:
             logger.error(f"Error updating history item {item_id}: {e}")
             return None
+
+    def get_deep_dive(self, node_id: str):
+        """Get deep dive data from cache if exists."""
+        try:
+            db = SessionLocal()
+            cache = db.query(DeepDiveCache).filter(DeepDiveCache.node_id == node_id).first()
+            db.close()
+            return cache
+        except Exception as e:
+            logger.error(f"Error getting deep dive cache: {e}")
+            return None
+
+    def save_deep_dive(self, node_id: str, data: str):
+        """Save deep dive data to cache."""
+        try:
+            db = SessionLocal()
+            # Overwrite if exists
+            existing = db.query(DeepDiveCache).filter(DeepDiveCache.node_id == node_id).first()
+            if existing:
+                existing.data = data
+                existing.timestamp = datetime.datetime.now(datetime.timezone.utc)
+            else:
+                cache = DeepDiveCache(node_id=node_id, data=data)
+                db.add(cache)
+            db.commit()
+            db.close()
+            logger.info(f"Cached deep dive for node: {node_id}")
+        except Exception as e:
+            logger.error(f"Error saving deep dive cache: {e}")
+

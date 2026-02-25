@@ -1,59 +1,67 @@
 #!/bin/bash
 
+# AI Knowledge Graph Platform - Unified Startup Script
+# This script works on Windows (Git Bash/WSL) and Linux/Mac.
+
 # Function to kill child processes on exit
-trap 'kill $(jobs -p)' SIGINT SIGTERM EXIT
+trap 'kill $(jobs -p) 2>/dev/null' SIGINT SIGTERM EXIT
 
-echo "Starting AI Knowledge Graph Platform..."
+echo "==============================================="
+echo "🚀 Starting AI Knowledge Graph Platform"
+echo "==============================================="
 
-# Start Backend
-echo "🚀 Starting Backend (Port 8000)..."
+# Detect OS for environment paths
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    ACTIVATE="./venv/Scripts/activate"
+    PYTHON_CMD="python"
+else
+    ACTIVATE="./venv/bin/activate"
+    PYTHON_CMD="python3"
+fi
+
+# 1. Setup & Start Backend
+echo "📦 Setting up Backend..."
 cd backend || exit
 
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
-    python -m venv venv
+    $PYTHON_CMD -m venv venv
 fi
 
-# Detect OS for activation
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
-    source venv/Scripts/activate
-else
-    source venv/bin/activate
-fi
-
-echo "Installing/Updating backend dependencies..."
+source "$ACTIVATE"
+echo "Checking backend dependencies..."
 pip install -r requirements.txt
 
-# Run sub-servers in background
-echo "🚀 Starting Mode Servers (8001, 8002, 8003)..."
-uvicorn query_server:app --host 0.0.0.0 --port 8001 &
-uvicorn pdf_server:app --host 0.0.0.0 --port 8002 &
-uvicorn programming_server:app --host 0.0.0.0 --port 8003 &
+echo "🔥 Launching Backend Multi-Servers..."
+# We run these in background with logs directed to file to keep console clean
+uvicorn query_server:app --host 0.0.0.0 --port 8001 > query_server.log 2>&1 &
+uvicorn pdf_server:app --host 0.0.0.0 --port 8002 > pdf_server.log 2>&1 &
+uvicorn programming_server:app --host 0.0.0.0 --port 8003 > programming_server.log 2>&1 &
+uvicorn server:app --host 0.0.0.0 --port 8000 > main_server.log 2>&1 &
 
-# Run root gateway in background
-echo "🚀 Starting Root Gateway (8000)..."
-uvicorn server:app --host 0.0.0.0 --port 8000 &
-BACKEND_PID=$!
+echo "✅ Backend Gateway: http://localhost:8000"
 
-# Wait for backend to be ready
-sleep 5
-
-# Start Frontend
-echo "🚀 Starting Frontend (Port 3000)..."
+# 2. Setup & Start Frontend
+echo "� Setting up Frontend..."
 cd ../frontend || exit
+
 if [ ! -d "node_modules" ]; then
-    echo "Installing frontend dependencies..."
-    npm install
+    echo "Installing frontend dependencies (legacy-peer-deps for React 19)..."
+    npm install --legacy-peer-deps
 fi
 
-# Run frontend
+echo "🔥 Launching Frontend Dashboard..."
+# Running frontend in background
 npm start &
-FRONTEND_PID=$!
 
-echo "✅ Services started!"
-echo "Backend: http://localhost:8000"
-echo "Frontend: http://localhost:3000"
-echo "Press Ctrl+C to stop all services."
+echo "==============================================="
+echo "✨ ALL SERVICES STARTED!"
+echo "🖥️  Frontend:  http://localhost:3000"
+echo "📡 Backend:   http://localhost:8000"
+echo "📚 API Docs:  http://localhost:8000/docs"
+echo "==============================================="
+echo "Logs are being written to backend/*.log files."
+echo "Press Ctrl+C to stop everything."
 
-# Wait for both processes
-wait $BACKEND_PID $FRONTEND_PID
+# Wait for background processes
+wait

@@ -4,7 +4,7 @@ import logging
 import asyncio
 import json
 from shared import (
-    QueryRequest, ExpandNodeRequest, ExplainRequest, AskNodeRequest,
+    QueryRequest, ExpandNodeRequest, ExplainRequest, AskNodeRequest, DeepDiveRequest,
     neo4j_service, session_service,
     _generate_with_gemini_internal, generate_with_fallback, generate_with_groq, generate_with_cohere,
     api_keys, extract_json, validate_and_normalize_graph
@@ -29,15 +29,15 @@ async def generate_graph(request: QueryRequest):
         graph_prompt = f"""Construct a hierarchical "Knowledge Tree" for the topic: "{request.query}"
 Generate a structured JSON response with:
 1. A detailed textual explanation
-2. A HIERARCHICAL TREE of 10-15 nodes organized in levels with BRANCHING relationships
-3. Distinct relations (Edges) connecting parent nodes to MULTIPLE child nodes
+2. A HIERARCHICAL TREE of 12-15 nodes organized in multiple vertical levels
+3. Distinct relations (Edges) connecting parent nodes to EXACTLY TWO child nodes (Strict Binary Branching)
 
 CRITICAL STRUCTURE REQUIREMENTS:
 - Level 0: 1 root node (main concept)
-- Level 1: 2-3 child nodes (major subtopics)
-- Level 2: 2-3 children PER level-1 node (detailed concepts)
-- Level 3+: Additional depth as needed
-- Each non-leaf node should have 2-3 children to create a BRANCHING TREE
+- Level 1-2: Branch each parent into exactly 2 sub-nodes.
+- Total Nodes: ~8-10 nodes (Keep it concise and fast).
+- Format: Use short, concept-based string IDs.
+- Return ONLY the JSON object. No markdown.
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -69,13 +69,11 @@ Return ONLY valid JSON in this exact format:
   }}
 }}
 Types: Concept, Prerequisite, Application, Component
-Focus on creating a HIERARCHICAL TREE with BRANCHING (each parent has 2-3 children). 
 CRITICAL: Use UNIQUE, concept-based string IDs (e.g., "neural_networks_intro") instead of simple integers like "1" or "2". 
-CRITICAL: Create a TREE structure, NOT a linear chain. Each node should have multiple children. Return ONLY valid JSON."""
-
+CRITICAL: Create a TREE structure, NOT a linear chain. Return ONLY valid JSON."""
         visual_prompt = f"""Generate a high-quality visual palette for a journey about: "{request.query}"
-Provide a list of 25 unique, abstract, and artistic keywords/short descriptions that would represent concepts in this field.
-Return ONLY a JSON array of strings: {{"visual_prompts": ["cybernetic neural network", "glowing neon circuits", "ethereal data flow", ...]}}"""
+Provide a list of 10 unique, artistic keywords representing concepts in this field.
+Return ONLY JSON: {{"visual_prompts": ["cybernetic neural network", "glowing neon circuits", ...]}}"""
 
         async def run_parallel():
             async def get_graph():
@@ -159,9 +157,9 @@ Return ONLY a JSON array of strings: {{"visual_prompts": ["cybernetic neural net
 async def expand_node(request: ExpandNodeRequest):
     try:
         prompt = f"""Expand the knowledge graph around the node: "{request.node_label}"
-Current context: {len(request.current_graph.nodes)} existing nodes
-Create 5-8 new related nodes.
-Return ONLY valid JSON with "nodes" and "edges" lists."""
+STRICT REQUIREMENT: Create EXACTLY 2 new related sub-nodes for this specific topic.
+PROHIBITED: Do NOT create more than 2 sub-nodes.
+Return ONLY valid JSON with "nodes" and "edges" lists. Ensure the branching is strictly limited to 2 subnodes for a clean vertical tree growth."""
         
         # Expansion Priority: Groq -> Gemini -> Cohere
         response_text = None
@@ -189,13 +187,13 @@ Return ONLY valid JSON with "nodes" and "edges" lists."""
 
         result = extract_json(response_text)
         if "nodes" in result:
-             for n in result["nodes"]: n["id"] = str(n.get("id"))
-             neo4j_service.insert_nodes(result["nodes"])
+            for n in result["nodes"]: n["id"] = str(n.get("id"))
+            neo4j_service.insert_nodes(result["nodes"])
         if "edges" in result:
-             for e in result["edges"]: 
-                 e["source"] = str(e.get("source"))
-                 e["target"] = str(e.get("target"))
-             neo4j_service.insert_relationships(result["edges"])
+            for e in result["edges"]: 
+                e["source"] = str(e.get("source"))
+                e["target"] = str(e.get("target"))
+            neo4j_service.insert_relationships(result["edges"])
         return result
     except Exception as e:
         logging.error(f"Node expansion error: {e}")
@@ -447,6 +445,86 @@ async def ask_node(request: AskNodeRequest):
     except Exception as e:
         logging.error(f"Ask node error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/deep-dive")
+async def deep_dive(request: DeepDiveRequest):
+    try:
+        prompt = f"""You are a master professor writing a DEFINITIVE TEXTBOOK on the subject: "{request.nodeLabel}".
+{f"CRITICAL DOMAIN CONTEXT: This concept must be explained strictly within the domain of: {request.context}" if request.context else ""}
+
+STRICT RULES (MUST FOLLOW EXACTLY):
+1. CATEGORY: Analyze the topic and context. Pick the MOST RELEVANT category from: COMP_SCI, SCIENCE, HUMANITIES, MEDICAL, or GENERAL. (e.g., World War 2 must be HUMANITIES, Biology must be SCIENCE).
+2. OVERVIEW: Must be a single PLAIN TEXT STRING (300+ words). Do NOT use JSON objects or arrays. Separate sections with a blank line using the literal text \\n\\n.
+3. MODULE CONTENT: For 'steps' or 'derivation' types, write EACH step as a NUMBERED item on its OWN LINE using \\n.
+4. imagePrompt: A single descriptive sentence for an academic scientific or historical diagram.
+5. ALL values must be plain strings. Zero nested JSON objects as field values.
+
+Return ONLY this valid JSON:
+{{
+  "title": "{request.nodeLabel}",
+  "category": "PICKED_CATEGORY",
+  "overview": "Introduction paragraph here.\\n\\nSection Title\\nDetailed explanation...\\n\\nSignificance\\nWhy this matters...",
+  "imagePrompt": "A detailed academic diagram for {request.nodeLabel}.",
+  "conceptGraph": [{{ "label": "Related Concept", "relation": "relationship type" }}],
+  "dynamicModules": [
+    {{ "type": "derivation", "title": "Inner Workings / Timeline", "content": "1. Step one\\n2. Step two" }},
+    {{ "type": "list", "title": "Key Factors / Applications", "content": "1. Item one\\n2. Item two" }}
+  ],
+  "aiTutorContext": "Background info for AI expert...",
+  "knowledgeChallenge": [{{ "question": "A test question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }}],
+  "proactivePaths": ["Next topic 1", "Next topic 2"],
+  "quickTips": ["Insight 1", "Insight 2"]
+}}
+"""
+        response_text = await generate_with_fallback('gemini-2.0-flash', prompt, json_mode=True)
+        result = extract_json(response_text)
+        
+        # Normalize: ensure all fields are plain strings so frontend never crashes
+        def to_str(val):
+            if val is None:
+                return ''
+            if isinstance(val, str):
+                # If the string itself looks like a JSON object, try to flatten it
+                stripped = val.strip()
+                if (stripped.startswith('{') and stripped.endswith('}')) or \
+                   (stripped.startswith('[') and stripped.endswith(']')):
+                    try:
+                        parsed = json.loads(stripped)
+                        return to_str(parsed)
+                    except Exception:
+                        pass
+                return val
+            if isinstance(val, list):
+                parts = []
+                for i, item in enumerate(val, 1):
+                    if isinstance(item, dict):
+                        parts.append('\n'.join(f"{k}: {v}" for k, v in item.items()))
+                    else:
+                        parts.append(str(item))
+                return '\n'.join(parts)
+            if isinstance(val, dict):
+                return '\n\n'.join(f"{k}\n{v}" for k, v in val.items())
+            return str(val)
+
+        result['overview'] = to_str(result.get('overview', ''))
+        result['imagePrompt'] = to_str(result.get('imagePrompt', ''))
+        result['aiTutorContext'] = to_str(result.get('aiTutorContext', ''))
+
+        for mod in result.get('dynamicModules', []):
+            mod['content'] = to_str(mod.get('content', ''))
+
+        return result
+    except Exception as e:
+        logging.error(f"Deep dive error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "service": "query-server"}
+
+@app.get("/")
+async def root():
+    return {"message": "Query Server Active"}
 
 if __name__ == "__main__":
     import uvicorn
