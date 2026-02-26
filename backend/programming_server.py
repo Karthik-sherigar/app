@@ -75,11 +75,11 @@ Create 8-12 meaningful nodes that explain the code flow. Return ONLY valid JSON.
         graph_data = validate_and_normalize_graph(graph_data)
 
         if "graph" in graph_data:
-            if graph_data["graph"]["nodes"]: neo4j_service.insert_nodes(graph_data["graph"]["nodes"])
-            if graph_data["graph"]["edges"]: neo4j_service.insert_relationships(graph_data["graph"]["edges"])
+            if graph_data["graph"]["nodes"]: neo4j_service.insert_nodes(graph_data["graph"]["nodes"], mode=request.mode)
+            if graph_data["graph"]["edges"]: neo4j_service.insert_relationships(graph_data["graph"]["edges"], mode=request.mode)
         
         if not getattr(request, 'is_temporary', False):
-            session_service.save_query_history(request.query, json.dumps(graph_data), mode=request.mode)
+            session_service.save_query_history(request.query, json.dumps(graph_data), mode=request.mode, user_email=getattr(request, 'user_email', None))
         
         return graph_data
     except Exception as e:

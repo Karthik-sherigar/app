@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import "@/App.css";
+import { loader } from "@monaco-editor/react";
+
+// Pre-configure Monaco to use a stable CDN version and prevent worker loading errors on mode switch
+loader.config({
+  paths: {
+    vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs"
+  },
+});
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
@@ -20,15 +28,30 @@ import ErrorBoundary from "./components/ui/ErrorBoundary";
 import SkeletonLoader from "./components/SkeletonLoader";
 import NodeExplorationItem from "./components/NodeExplorationItem";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ExplorationPage from "./components/ExplorationPage";
+import PDFExplorationPage from "./components/PDFExplorationPage";
+import PDFUploadLanding from "./components/PDFUploadLanding";
+import PDFTextPanel from "./components/PDFTextPanel";
+import PDFLearningPath from "./components/PDFLearningPath";
+import GraphLoadingAnimation from "./components/GraphLoadingAnimation";
+import PDFLoadingAnimation from "./components/PDFLoadingAnimation";
+import LoginPage from "./components/LoginPage";
+import HomePage from "./components/HomePage";
+import QueryLanding from "./components/QueryLanding";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function App() {
   const location = useLocation(); // Hook for route checking
-  const [mode, setMode] = useState("query");
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem("authenticated") === "true" || false;
+  });
+  
+  // Neutral default state so the user lands on the Home Page first
+  const [mode, setMode] = useState(null);
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
   const [selectedNode, setSelectedNode] = useState(null);
   const [showNodePanel, setShowNodePanel] = useState(false);
@@ -56,6 +79,7 @@ function App() {
   const [nodeExplanationLoading, setNodeExplanationLoading] = useState(false);
   const [nodeExploreTab, setNodeExploreTab] = useState('text');
   const [isTemporary, setIsTemporary] = useState(false);
+  const [pdfText, setPdfText] = useState("");
 
   // Refs for async callbacks
   const graphDataRef = useRef(graphData);
@@ -66,13 +90,67 @@ function App() {
   useEffect(() => { currentHistoryIdRef.current = currentHistoryId; }, [currentHistoryId]);
   useEffect(() => { explorationStackRef.current = explorationStack; }, [explorationStack]);
 
+  // IMPORTANT: URL State Restoration Observer
+  // Ensures returning from explore modes or refreshing doesn't lose your place
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const restoreMode = searchParams.get('restoreMode');
+    const initHistoryId = searchParams.get('historyId');
+    const initMode = searchParams.get('mode');
+
+    if (restoreMode && initHistoryId) {
+      // Remove query parameters from URL visually without unmounting
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      const loadHistoryFromUrl = async () => {
+        setLoading(true);
+        try {
+          const response = await axios.get(`${API}/history/${initHistoryId}`);
+          const historyItem = response.data;
+          const dataToRestore = historyItem.response_data;
+
+          if (dataToRestore) {
+            const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
+            
+            // Bypass prevent-clear logic by setting mode directly first
+            setMode(historyItem.mode || restoreMode);
+            prevModeRef.current = historyItem.mode || restoreMode;
+
+            setGraphData(normalizedData);
+            setActiveQuery(historyItem.query || "Restored Session");
+            setExplorationStack(dataToRestore.explorationStack || []);
+            setCurrentHistoryId(historyItem.id);
+            toast.success("Expedition restored from URL.");
+          }
+        } catch (e) {
+          console.error("Failed to restore history from URL:", e);
+          // If the history is gone, at least default to the requested mode
+          setMode(restoreMode);
+          prevModeRef.current = restoreMode;
+        } finally {
+          setLoading(false);
+        }
+      };
+      // Short timeout to guarantee mode swap doesn't clear our data asynchronously
+      setTimeout(loadHistoryFromUrl, 50);
+      
+    } else if (initMode) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setMode(initMode);
+      prevModeRef.current = initMode;
+    }
+  }, [location.search]);
+
   const fetchFullHistory = async () => {
     if (historyLoading) return;
     console.log("Fetching full history...");
     setShowHistoryDialog(true);
     setHistoryLoading(true);
     try {
-      const response = await axios.get(`${API}/history?limit=100&include_data=false`);
+      const email = localStorage.getItem("userEmail");
+      const response = await axios.get(`${API}/history`, {
+        params: { limit: 100, include_data: false, mode, user_email: email }
+      });
       console.log("Full history received:", response.data);
       setHistory(response.data);
     } catch (e) {
@@ -92,15 +170,38 @@ function App() {
     setShowChat(false);
     setExplorationStack([]);
     setCurrentHistoryId(null);
-    setMode(newMode);
+    if (!newMode) {
+      navigate('/');
+    } else {
+      navigate(`/${newMode}`);
+    }
   };
 
-  // Mode Isolation: Secondary fallback reset
+  // Sync mode state with route changes directly
   useEffect(() => {
-    if (graphData.nodes?.length > 0) {
-      setGraphData({ nodes: [], edges: [] });
+    if (location.pathname === '/' || location.pathname === '/login') {
+      if (mode !== null) setMode(null);
+    } else if (location.pathname === '/query') {
+      if (mode !== 'query') setMode('query');
+    } else if (location.pathname === '/pdf') {
+      if (mode !== 'pdf') setMode('pdf');
+    } else if (location.pathname === '/programming') {
+      if (mode !== 'programming') setMode('programming');
     }
-    setHasNewResponse(false);
+  }, [location.pathname]);
+
+  // Mode Isolation: Secondary fallback reset
+  // Track previous mode to prevent accidental clearing
+  const prevModeRef = useRef(mode);
+
+  useEffect(() => {
+    // Only clear if the mode actually changed and we aren't loading new data for the current mode
+    if (prevModeRef.current !== mode) {
+      console.log(`Mode changing from ${prevModeRef.current} to ${mode}. Clearing workspace.`);
+      setGraphData({ nodes: [], edges: [] });
+      setHasNewResponse(false);
+      prevModeRef.current = mode;
+    }
   }, [mode]);
 
   const checkBackendHealth = useCallback(async () => {
@@ -114,12 +215,15 @@ function App() {
 
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await axios.get(`${API}/history`);
+      const email = localStorage.getItem("userEmail");
+      const response = await axios.get(`${API}/history`, {
+        params: { mode, user_email: email }
+      });
       setHistory(response.data);
     } catch (e) {
       console.error("Failed to fetch history:", e);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     checkBackendHealth();
@@ -133,10 +237,12 @@ function App() {
 
     while (attempts < maxAttempts) {
       try {
+        const email = localStorage.getItem("userEmail");
         const response = await axios.post(`${API}/generate-graph`, {
           query,
           mode: selectedMode || mode,
-          is_temporary: isTemporary
+          is_temporary: isTemporary,
+          user_email: email
         }, { timeout: 45000 });
 
         const data = response.data;
@@ -174,22 +280,43 @@ function App() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const email = localStorage.getItem("userEmail");
+      if (email) formData.append("user_email", email);
+
       const response = await axios.post(`${API}/generate-graph-from-pdf`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
       const data = response.data;
-      const normalizedData = data.graph ? { ...data.graph, nodes: data.graph.nodes || [], edges: data.graph.edges || [] } : data;
-      setGraphData(normalizedData);
+      console.log("PDF Response Data:", data);
+      
+      const nodes = data.nodes || data.graph?.nodes || [];
+      const edges = data.edges || data.graph?.edges || [];
+      
+      console.log(`Setting PDF Graph State: ${nodes.length} nodes, ${edges.length} edges`);
 
-      if (!showChat) {
-        setHasNewResponse(true);
-      }
+      const finalGraph = {
+        nodes: nodes,
+        edges: edges,
+        title: data.title || (file ? `PDF: ${file.name}` : "Document Analysis")
+      };
 
-      toast.success("Document architecture extracted!");
+      // Order matters: Set mode first, then data to avoid race with effects
+      setMode("pdf");
+      setGraphData(finalGraph);
+      setPdfText(data.extracted_text || "");
+      setActiveQuery(finalGraph.title);
+      setSelectedNode(null);
+      setShowNodePanel(false);
+      
+      if (data.historyId) setCurrentHistoryId(data.historyId);
+      
+      setHasNewResponse(true);
+      toast.success("Document roadmap generated!");
       fetchHistory();
     } catch (e) {
-      toast.error("Failed to process document structure.");
+      const errorMessage = e.response?.data?.detail || "Failed to process document structure.";
+      toast.error(errorMessage);
       console.error(e);
     } finally {
       setLoading(false);
@@ -202,6 +329,7 @@ function App() {
       const response = await axios.post(`${API}/expand-node`, {
         node_id: nodeId,
         node_label: nodeLabel,
+        mode: mode,
         current_graph: { nodes: graphData.nodes || [], edges: graphData.edges || [] }
       });
 
@@ -243,6 +371,7 @@ function App() {
     setShowExplanation(false);
     setExplorationStack([]);
     setCurrentHistoryId(null);
+    setPdfText("");
   }, []);
 
   const handleNewQuery = useCallback(() => {
@@ -321,12 +450,18 @@ function App() {
 
   const deleteAllHistory = async () => {
     try {
-      if (window.confirm("WARNING: Are you sure you want to delete ALL chat history permanently? This action will permanently erase all data from the database.")) {
-        await axios.delete(`${API}/history`);
-        setHistory([]);
+      if (window.confirm(`Are you sure you want to delete all history for ${mode} mode?`)) {
+        const email = localStorage.getItem("userEmail");
+        await axios.delete(`${API}/history`, {
+           params: { mode: mode, user_email: email }
+        });
+        setHistory(prev => prev.filter(h => h.mode !== mode));
+        if (mode === "pdf") {
+          setPdfText("");
+        }
         setExplorationStack([]);
         setCurrentHistoryId(null);
-        toast.success("All chat history permanently deleted.");
+        toast.success(`${mode} history permanently deleted.`);
       }
     } catch (e) {
       toast.error("Failed to delete all history.");
@@ -353,8 +488,37 @@ function App() {
     }
   }, []);
 
+  const handleLoginSuccess = () => {
+      localStorage.setItem("authenticated", "true");
+      setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+      localStorage.removeItem("authenticated");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("profilePic");
+      setIsAuthenticated(false);
+      setMode(null);
+      setHistory([]);
+  };
+
   // ROUTING CHECK
+  if (!isAuthenticated && location.pathname !== '/login') {
+      return <LoginPage onLogin={handleLoginSuccess} />;
+  }
+  
+  if (location.pathname === '/login') {
+      return <LoginPage onLogin={handleLoginSuccess} />;
+  }
+
   if (location.pathname.startsWith('/explore')) {
+    const searchParams = new URLSearchParams(location.search);
+    const routeMode = searchParams.get('mode');
+    
+    if (routeMode === 'pdf') {
+       return <PDFExplorationPage />;
+    }
     return <ExplorationPage />;
   }
 
@@ -370,29 +534,31 @@ function App() {
       />
 
       <div className="app-layout">
-        <Sidebar
-          mode={mode}
-          generateGraph={generateGraph}
-          generateGraphFromPDF={generateGraphFromPDF}
-          handleNewQuery={handleNewQuery}
-          handleTemporaryQuery={handleTemporaryQuery}
-          deleteAllHistory={deleteAllHistory}
-          explainConfusion={() => {
-            if (selectedNode) {
-              explainConfusion(selectedNode.label);
-            } else {
-              toast.error("Identify a station first.");
-            }
-          }}
-          resetGraph={resetGraph}
-          history={history}
-          restoreFromHistory={restoreFromHistory}
-          deleteHistoryItem={deleteHistoryItem}
-          onShowFullHistory={fetchFullHistory}
-          loading={loading}
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-        />
+        {mode !== null && (
+            <Sidebar
+              mode={mode}
+              generateGraph={generateGraph}
+              generateGraphFromPDF={generateGraphFromPDF}
+              handleNewQuery={handleNewQuery}
+              handleTemporaryQuery={handleTemporaryQuery}
+              deleteAllHistory={deleteAllHistory}
+              explainConfusion={() => {
+                if (selectedNode) {
+                  explainConfusion(selectedNode.label);
+                } else {
+                  toast.error("Identify a station first.");
+                }
+              }}
+              resetGraph={resetGraph}
+              history={history}
+              restoreFromHistory={restoreFromHistory}
+              deleteHistoryItem={deleteHistoryItem}
+              onShowFullHistory={fetchFullHistory}
+              loading={loading}
+              isCollapsed={isSidebarCollapsed}
+              setIsCollapsed={setIsSidebarCollapsed}
+            />
+        )}
 
         <main
           className={`workspace ${loading ? 'no-scroll' : ''}`}
@@ -411,38 +577,17 @@ function App() {
               selectedNode={selectedNode}
               externalSelectedNode={externalSelectedNode}
             />
-          ) : (loading || graphData.nodes?.length > 0) ? (
-            <>
-              <AnimatePresence>
-                {showChat && (
-                  <motion.div
-                    className="floating-chat-panel"
-                    initial={{ scale: 0.9, y: 50, opacity: 0 }}
-                    animate={{ scale: 1, y: 0, opacity: 1 }}
-                    exit={{ scale: 0.95, y: 20, opacity: 0 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                  >
-                    <div className="chat-header">
-                      <h3>AI Analysis</h3>
-                      <button onClick={() => setShowChat(false)} className="close-chat-btn">
-                        <X size={20} />
-                      </button>
-                    </div>
-                    <TextResponsePanel
-                      graphData={graphData}
-                      selectedNode={externalSelectedNode}
-                      onNodeClick={handleTextNodeClick}
-                      onExpandConcept={handleExpandConcept}
-                      activeTab={activeTab}
-                      onTabChange={setActiveTab}
-                    />
-                  </motion.div>
-                )}
-
-              </AnimatePresence>
-
-              {/* Main Graph Visualization */}
-              {mode === 'query' ? (
+          ) : (graphData.nodes && graphData.nodes.length > 0) ? (
+            <div key={`graph-${mode}-${currentHistoryId}`} className="graph-workspace-container">
+              {mode === 'pdf' ? (
+                <PDFLearningPath 
+                  data={graphData} 
+                  pdfFilename={activeQuery.startsWith("PDF: ") ? activeQuery.replace("PDF: ", "") : "Document"} 
+                  onNodeClick={(node) => {
+                    window.open(`/explore?nodeId=${node.id}&mode=pdf&label=${encodeURIComponent(node.label)}&historyId=${currentHistoryId}`, '_blank');
+                  }}
+                />
+              ) : (
                 <>
                   <OrganicTreeGraph
                     graphData={graphData}
@@ -450,76 +595,34 @@ function App() {
                     onNodeClick={handleNodeClick}
                     onExploreNode={async (nodeData) => {
                       if (!nodeData) return;
-
-                      // Check if already in stack
                       const existingIndex = explorationStack.findIndex(item => item.nodeId === nodeData.id);
                       if (existingIndex !== -1) {
                         document.getElementById(`explanation-${nodeData.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         toast.info("Station already explored.");
                         return;
                       }
-
                       setNodeExplanationLoading(true);
-                      // Scroll to loading area (bottom)
                       setTimeout(() => {
                         document.querySelector('.node-explore-loading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }, 100);
-
                       try {
                         const res = await fetch('/api/explain-node', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            nodeId: nodeData.id,
-                            nodeLabel: nodeData.label,
-                            context: nodeData.description || ''
-                          })
+                          headers: { 'Content-Type': 'application/json', 'x-mode': mode },
+                          body: JSON.stringify({ nodeId: nodeData.id, nodeLabel: nodeData.label, context: nodeData.description || '' })
                         });
-
                         if (res.ok) {
                           const data = await res.json();
-
-                          // Flexible data handling
-                          if (!data.textResponse && (data.content || data.response || data.message)) {
-                            const text = data.content || data.response || data.message;
-                            if (typeof text === 'string') {
-                              data.textResponse = { overview: text };
-                            } else if (typeof text === 'object') {
-                              data.textResponse = text;
-                            }
-                          }
-
-                          // Validate response
                           if (data && (data.textResponse || data.explanation || data.answer)) {
-                            const newExplanation = {
-                              ...data,
-                              nodeId: nodeData.id,
-                              nodeLabel: nodeData.label,
-                              rootQuery: activeQuery, // Store the main topic for deep dive context
-                              timestamp: Date.now()
-                            };
-
-                            // Update Stack precisely via refs
-                            const currentStack = [...explorationStackRef.current];
-                            const newStack = [...currentStack, newExplanation];
+                            const newExplanation = { ...data, nodeId: nodeData.id, nodeLabel: nodeData.label, rootQuery: activeQuery, timestamp: Date.now() };
+                            const newStack = [...explorationStackRef.current, newExplanation];
                             setExplorationStack(newStack);
-
-                            // PERSIST to History
                             if (currentHistoryIdRef.current) {
-                              axios.put(`${API}/history/${currentHistoryIdRef.current}`, {
-                                ...graphDataRef.current,
-                                explorationStack: newStack
-                              }).catch(err => console.error("Failed to auto-save history:", err));
+                              axios.put(`${API}/history/${currentHistoryIdRef.current}`, { ...graphDataRef.current, explorationStack: newStack }).catch(err => console.error("Auto-save failed:", err));
                             }
-                          } else {
-                            console.error("Invalid explanation data format.");
-                            toast.error("Received invalid data from station.");
                           }
-                        } else {
-                          toast.error('Failed to load explanation.');
                         }
                       } catch (e) {
-                        console.error('Node explanation error:', e);
                         toast.error('Failed to load explanation.');
                       } finally {
                         setNodeExplanationLoading(false);
@@ -529,69 +632,44 @@ function App() {
                     mode={mode}
                     loading={loading}
                   />
-
-                  {/* Creative End of Graph Divider */}
-                  {(!loading && (graphData.nodes || []).length > 0) && (
-                    <div className="graph-end-divider">
-                      <div className="divider-line"></div>
-                      <div className="divider-text">
-                        <span className="divider-icon">✧</span>
-                        End of the Graph
-                        <span className="divider-icon">✧</span>
-                      </div>
-                      <div className="divider-line"></div>
-                    </div>
-                  )}
-
-                  {/* Below-graph exploration section — Stacked Explanations */}
                   <div className="exploration-stack">
                     {explorationStack.map((exp, index) => (
-                      <NodeExplorationItem
-                        key={`${currentHistoryId}-${exp.nodeId || index}`}
-                        data={exp}
-                        onUpdate={updateExplorationItem}
-                      />
+                      <NodeExplorationItem key={exp.nodeId || index} data={exp} onUpdate={updateExplorationItem} mode={mode} />
                     ))}
-
-                    {nodeExplanationLoading && (
-                      <div className="node-explore-section node-explore-loading">
-                        <SkeletonLoader />
-                      </div>
-                    )}
+                    {nodeExplanationLoading && <div className="node-explore-section node-explore-loading"><SkeletonLoader /></div>}
                   </div>
                 </>
-              ) : (
-                <GraphCanvas
-                  graphData={graphData}
-                  onNodeClick={handleNodeClick}
-                  selectedNode={externalSelectedNode}
-                  mode={mode}
-                  loading={loading}
-                  activeQuery={activeQuery}
-                />
               )}
-
-              {mode === "query" && (
-                <motion.button
-                  className={`floating-chat-btn ${hasNewResponse ? 'glow' : ''}`}
-                  onClick={() => {
-                    setShowChat(!showChat);
-                    setHasNewResponse(false);
-                  }}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <MessageSquare size={24} />
-                  {hasNewResponse && <span className="notification-dot" />}
-                </motion.button>
+              {loading && (
+                <div className="workspace-overlay-loader">
+                  <GraphLoadingAnimation mode={mode} />
+                </div>
               )}
-            </>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">🗺️</div>
-              <h3>Expedition Not Started</h3>
-              <p>Enter a query to map your learning path<br />or upload a data source.</p>
             </div>
+          ) : mode === 'pdf' ? (
+            loading ? (
+              <div className="workspace-centered-loader">
+                <PDFLoadingAnimation />
+              </div>
+            ) : (
+              <PDFUploadLanding 
+                onUpload={generateGraphFromPDF} 
+                loading={loading} 
+              />
+            )
+          ) : loading ? (
+            <div className="workspace-centered-loader">
+              <GraphLoadingAnimation mode={mode} />
+              <p>Analyzing knowledge structure...</p>
+            </div>
+          ) : mode === 'query' ? (
+             <QueryLanding />
+          ) : (
+            <HomePage 
+              setMode={handleModeChange} 
+              history={history} 
+              onLogout={handleLogout} 
+            />
           )}
 
         </main>

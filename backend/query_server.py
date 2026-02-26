@@ -134,12 +134,12 @@ Return ONLY JSON: {{"visual_prompts": ["cybernetic neural network", "glowing neo
         result = validate_and_normalize_graph(result)
         
         if "nodes" in result["graph"]:
-             neo4j_service.insert_nodes(result["graph"]["nodes"])
+             neo4j_service.insert_nodes(result["graph"]["nodes"], mode=request.mode)
         if "edges" in result["graph"]:
-             neo4j_service.insert_relationships(result["graph"]["edges"])
+             neo4j_service.insert_relationships(result["graph"]["edges"], mode=request.mode)
 
         if not request.is_temporary:
-             history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode)
+             history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode, user_email=request.user_email)
              if history_item:
                  result["historyId"] = history_item.id
         else:
@@ -188,12 +188,12 @@ Return ONLY valid JSON with "nodes" and "edges" lists. Ensure the branching is s
         result = extract_json(response_text)
         if "nodes" in result:
             for n in result["nodes"]: n["id"] = str(n.get("id"))
-            neo4j_service.insert_nodes(result["nodes"])
+            neo4j_service.insert_nodes(result["nodes"], mode=request.mode)
         if "edges" in result:
             for e in result["edges"]: 
                 e["source"] = str(e.get("source"))
                 e["target"] = str(e.get("target"))
-            neo4j_service.insert_relationships(result["edges"])
+            neo4j_service.insert_relationships(result["edges"], mode=request.mode)
         return result
     except Exception as e:
         logging.error(f"Node expansion error: {e}")

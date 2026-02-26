@@ -42,68 +42,74 @@ class Neo4jService:
             # Create Index on id property to avoid warnings
             with self.driver.session() as session:
                 session.run("CREATE INDEX node_id_index IF NOT EXISTS FOR (n:Node) ON (n.id)")
+                session.run("CREATE INDEX node_mode_index IF NOT EXISTS FOR (n:Node) ON (n.mode)")
             logger.info("Connected to Neo4j successfully.")
 
-    def insert_nodes(self, nodes):
+    def insert_nodes(self, nodes, mode="query"):
         """
-        Insert a list of nodes into Neo4j.
+        Insert a list of nodes into Neo4j with mode isolation.
         Each node dict should have: id, type, label, description, importance
         """
         if not self.driver:
             logger.warning("Neo4j driver not initialized. Skipping insert_nodes.")
             return
 
-        query = """
+        # Dynamically inject mode label for isolation
+        query = f"""
         UNWIND $nodes AS node
-        MERGE (n:Node {id: node.id})
+        MERGE (n:Node:{mode.capitalize()} {{id: node.id}})
         SET n.label = node.label,
             n.type = node.type,
             n.description = node.description,
             n.importance = node.importance,
-            n.depth = node.depth
+            n.depth = node.depth,
+            n.mode = $mode
         """
         
         try:
             with self.driver.session() as session:
-                session.run(query, nodes=nodes)
-            logger.info(f"Inserted {len(nodes)} nodes into Neo4j.")
+                session.run(query, nodes=nodes, mode=mode)
+            logger.info(f"Inserted {len(nodes)} nodes into Neo4j (mode={mode}).")
         except Exception as e:
             logger.error(f"Error inserting nodes: {e}")
 
-    def insert_relationships(self, edges):
+    def insert_relationships(self, edges, mode="query"):
         """
-        Insert a list of edges into Neo4j.
+        Insert a list of edges into Neo4j with mode isolation.
         Each edge dict should have: source, target, relation
         """
         if not self.driver:
             logger.warning("Neo4j driver not initialized. Skipping insert_relationships.")
             return
 
-        query = """
+        query = f"""
         UNWIND $edges AS edge
-        MATCH (s:Node {id: edge.source})
-        MATCH (t:Node {id: edge.target})
-        MERGE (s)-[r:RELATION {type: edge.relation}]->(t)
-        SET r.label = edge.relation
+        MATCH (s:Node:{mode.capitalize()} {{id: edge.source}})
+        MATCH (t:Node:{mode.capitalize()} {{id: edge.target}})
+        MERGE (s)-[r:RELATION {{type: edge.relation}}]->(t)
+        SET r.label = edge.relation,
+            r.mode = $mode
         """
         
         try:
             with self.driver.session() as session:
-                session.run(query, edges=edges)
-            logger.info(f"Inserted {len(edges)} relationships into Neo4j.")
+                session.run(query, edges=edges, mode=mode)
+            logger.info(f"Inserted {len(edges)} relationships into Neo4j (mode={mode}).")
         except Exception as e:
             logger.error(f"Error inserting relationships: {e}")
 
-    def get_subgraph(self, limit=100):
+    def get_subgraph(self, limit=100, mode=None):
         """
-        Fetch a subgraph (nodes and edges) from Neo4j.
+        Fetch a subgraph (nodes and edges) from Neo4j, optionally filtered by mode.
         """
         if not self.driver:
             logger.warning("Neo4j driver not initialized. Skipping get_subgraph.")
             return {"nodes": [], "edges": []}
 
-        query = """
-        MATCH (n)-[r]->(m)
+        label_filter = f":{mode.capitalize()}" if mode else ""
+        query = f"""
+        MATCH (n{label_filter})-[r]->(m{label_filter})
+        {"WHERE n.mode = $mode AND m.mode = $mode" if mode else ""}
         RETURN n, r, m
         LIMIT $limit
         """
@@ -113,7 +119,7 @@ class Neo4jService:
 
         try:
             with self.driver.session() as session:
-                result = session.run(query, limit=limit)
+                result = session.run(query, limit=limit, mode=mode)
                 for record in result:
                     n = record["n"]
                     m = record["m"]
@@ -151,16 +157,19 @@ class Neo4jService:
             logger.error(f"Error fetching subgraph: {e}")
             return {"nodes": [], "edges": []}
 
-    def get_subgraph_by_ids(self, node_ids: list):
+    def get_subgraph_by_ids(self, node_ids: list, mode=None):
         """
-        Fetch all nodes in the ID list and any relationships within them.
+        Fetch all nodes in the ID list and any relationships within them, optionally filtered by mode.
         """
         if not self.driver or not node_ids:
             return {"nodes": [], "edges": []}
 
-        query = """
-        MATCH (n) WHERE n.id IN $node_ids
-        OPTIONAL MATCH (n)-[r]-(m) WHERE m.id IN $node_ids
+        label_filter = f":{mode.capitalize()}" if mode else ""
+        query = f"""
+        MATCH (n{label_filter}) WHERE n.id IN $node_ids
+        {"AND n.mode = $mode" if mode else ""}
+        OPTIONAL MATCH (n)-[r]-(m{label_filter}) WHERE m.id IN $node_ids
+        {"AND m.mode = $mode" if mode else ""}
         RETURN DISTINCT n, r, m
         """
         
@@ -170,7 +179,7 @@ class Neo4jService:
 
         try:
             with self.driver.session() as session:
-                result = session.run(query, node_ids=node_ids)
+                result = session.run(query, node_ids=node_ids, mode=mode)
                 for record in result:
                     n = record["n"]
                     if n:
@@ -213,3 +222,18 @@ class Neo4jService:
         except Exception as e:
             logger.error(f"Error fetching subgraph by ids: {e}")
             return {"nodes": [], "edges": []}
+
+    def clear_mode_data(self, mode: str):
+        """
+        Exclusively clear data for a specific mode in Neo4j.
+        """
+        if not self.driver or not mode:
+            return
+
+        query = f"MATCH (n:Node:{mode.capitalize()}) DETACH DELETE n"
+        try:
+            with self.driver.session() as session:
+                session.run(query)
+            logger.info(f"Cleared all Neo4j data for mode: {mode}")
+        except Exception as e:
+            logger.error(f"Error clearing Neo4j mode data: {e}")

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -9,8 +9,11 @@ from typing import List
 from shared import (
     session_service, neo4j_service, HistoryItem
 )
+from auth_routes import auth_router
 
 app = FastAPI()
+
+app.include_router(auth_router)
 
 # Configure CORS
 app.add_middleware(
@@ -48,14 +51,35 @@ async def generate_graph_proxy(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate-graph-from-pdf")
-async def generate_graph_from_pdf_proxy(file: UploadFile = File(...)):
+async def generate_graph_from_pdf_proxy(file: UploadFile = File(...), user_email: str = Form(None)):
     try:
         # Re-upload the file to the PDF server
         files = {"file": (file.filename, await file.read(), file.content_type)}
-        response = await client.post(f"{PDF_SERVER_URL}/api/generate-graph-from-pdf", files=files, timeout=90.0)
+        data = {"user_email": user_email} if user_email else None
+        response = await client.post(f"{PDF_SERVER_URL}/api/generate-graph-from-pdf", files=files, data=data, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (pdf): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/pdf/deep-dive")
+async def pdf_deep_dive_proxy(request: Request):
+    try:
+        body = await request.json()
+        response = await client.post(f"{PDF_SERVER_URL}/api/pdf/deep-dive", json=body, timeout=120.0)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Proxy error (pdf-deep-dive): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/pdf/chat")
+async def pdf_chat_proxy(request: Request):
+    try:
+        body = await request.json()
+        response = await client.post(f"{PDF_SERVER_URL}/api/pdf/chat", json=body, timeout=120.0)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Proxy error (pdf-chat): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/expand-node")
@@ -91,8 +115,8 @@ async def explain_confusion_proxy(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history", response_model=List[HistoryItem])
-async def get_history(limit: int = 20, include_data: bool = True):
-    history_records = session_service.get_history(limit=limit)
+async def get_history(limit: int = 20, include_data: bool = True, mode: str = None, user_email: str = None):
+    history_records = session_service.get_history(limit=limit, mode=mode, user_email=user_email)
     items = []
     for record in history_records:
         try:
@@ -144,10 +168,13 @@ async def delete_history_item(item_id: int):
     return {"message": "History item deleted"}
 
 @app.delete("/api/history")
-async def delete_all_history():
+async def delete_all_history(mode: str = None, user_email: str = None):
     try:
-        session_service.clear_history()
-        return {"message": "All history deleted"}
+        session_service.clear_history(mode=mode, user_email=user_email)
+        session_service.clear_deep_dive(mode=mode)
+        if mode:
+            neo4j_service.clear_mode_data(mode=mode)
+        return {"message": f"History, deep dive cache, and graph data for {mode or 'all modes'} deleted"}
     except Exception as e:
         logging.error(f"Error clearing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to clear history")
@@ -204,14 +231,16 @@ async def deep_dive_proxy(request: Request):
         context = body.get("context", "")
         logging.info(f"Deep-dive request for node: {node_id}, context: {context}")
         
-        # Create a unique cache key that includes context to prevent collisions
-        # (e.g., 'causes_of_origin' for WW2 vs 'causes_of_origin' for a CS bug)
-        cache_key = f"{node_id}:{context}" if context else node_id
-        
+        # Extract mode from headers if present, else default to query
+        mode = request.headers.get("x-mode", "query")
+
+        # Create a unique cache key
+        cache_key = f"{node_id}:{context}" if context else str(node_id)
+
         if node_id:
-            cached = session_service.get_deep_dive(cache_key)
+            cached = session_service.get_deep_dive(cache_key, mode=mode)
             if cached:
-                logging.info(f"Serving deep dive from cache for: {cache_key}")
+                logging.info(f"Serving deep dive from cache for: {cache_key} (mode={mode})")
                 return json.loads(cached.data)
 
         target_url = f"{QUERY_SERVER_URL}/api/deep-dive"
@@ -220,7 +249,7 @@ async def deep_dive_proxy(request: Request):
         
         # Cache the result with the unique key
         if node_id and response.status_code == 200:
-            session_service.save_deep_dive(cache_key, json.dumps(data))
+            session_service.save_deep_dive(cache_key, json.dumps(data), mode=mode)
             
         return data
     except Exception as e:
@@ -245,16 +274,19 @@ async def generate_image(request: Request):
         if not prompt:
             raise HTTPException(status_code=400, detail="Prompt is required")
 
+        # Extract mode from headers
+        mode = request.headers.get("x-mode", "query")
+
         # Create a unique cache key
         cache_key = f"{node_id}:{context}" if context else node_id
 
         # Check Cache
         if node_id:
-            cached = session_service.get_deep_dive(cache_key)
+            cached = session_service.get_deep_dive(cache_key, mode=mode)
             if cached:
                 cached_data = json.loads(cached.data)
                 if cached_data.get("imageUrl"):
-                    logging.info(f"Serving image from cache for: {cache_key}")
+                    logging.info(f"Serving image from cache for: {cache_key} (mode={mode})")
                     return {"image_url": cached_data["imageUrl"]}
 
         headers = {
@@ -317,13 +349,13 @@ async def generate_image(request: Request):
                     # generated is a list of URL strings per official docs
                     image_url = images[0] if isinstance(images[0], str) else images[0].get("url", "")
                     
-                    # Update cache with imageUrl
+                    # Update cache with imageUrl (sharing same mode logic)
                     if node_id:
-                        cached = session_service.get_deep_dive(cache_key)
+                        cached = session_service.get_deep_dive(cache_key, mode=mode)
                         if cached:
                             cached_data = json.loads(cached.data)
                             cached_data["imageUrl"] = image_url
-                            session_service.save_deep_dive(cache_key, json.dumps(cached_data))
+                            session_service.save_deep_dive(cache_key, json.dumps(cached_data), mode=mode)
 
                     return {"image_url": image_url}
                 break

@@ -220,6 +220,7 @@ h4 {
 }
 
 .sidebar.query-mode-autohide,
+.sidebar.pdf-mode-autohide,
 .sidebar.programming-mode-autohide {
   width: 68px;
   opacity: 0.8;
@@ -228,6 +229,7 @@ h4 {
 }
 
 .sidebar.query-mode-autohide:hover,
+.sidebar.pdf-mode-autohide:hover,
 .sidebar.programming-mode-autohide:hover {
   width: 320px;
   opacity: 1;
@@ -240,6 +242,11 @@ h4 {
 .sidebar.query-mode-autohide:not(:hover) .history-preview-classic,
 .sidebar.query-mode-autohide:not(:hover) .history-meta,
 .sidebar.query-mode-autohide:not(:hover) .input-container,
+.sidebar.pdf-mode-autohide:not(:hover) .section-title span,
+.sidebar.pdf-mode-autohide:not(:hover) .btn-action span,
+.sidebar.pdf-mode-autohide:not(:hover) .history-preview-classic,
+.sidebar.pdf-mode-autohide:not(:hover) .history-meta,
+.sidebar.pdf-mode-autohide:not(:hover) .input-container,
 .sidebar.programming-mode-autohide:not(:hover) .section-title span,
 .sidebar.programming-mode-autohide:not(:hover) .btn-action span,
 .sidebar.programming-mode-autohide:not(:hover) .history-preview-classic,
@@ -249,11 +256,13 @@ h4 {
 }
 
 .sidebar.query-mode-autohide:not(:hover) .sidebar-section,
+.sidebar.pdf-mode-autohide:not(:hover) .sidebar-section,
 .sidebar.programming-mode-autohide:not(:hover) .sidebar-section {
   align-items: center;
 }
 
 .sidebar.query-mode-autohide:not(:hover) .sidebar-content,
+.sidebar.pdf-mode-autohide:not(:hover) .sidebar-content,
 .sidebar.programming-mode-autohide:not(:hover) .sidebar-content {
   padding: 16px 8px;
 }
@@ -630,6 +639,30 @@ h4 {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.workspace-centered-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.workspace-overlay-loader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 11, 14, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
 }
 
 /* Graph takes a fixed viewport height so exploration section is below it */

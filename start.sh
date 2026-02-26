@@ -34,10 +34,10 @@ pip install -r requirements.txt
 
 echo "🔥 Launching Backend Multi-Servers..."
 # We run these in background with logs directed to file to keep console clean
-uvicorn query_server:app --host 0.0.0.0 --port 8001 > query_server.log 2>&1 &
-uvicorn pdf_server:app --host 0.0.0.0 --port 8002 > pdf_server.log 2>&1 &
-uvicorn programming_server:app --host 0.0.0.0 --port 8003 > programming_server.log 2>&1 &
-uvicorn server:app --host 0.0.0.0 --port 8000 > main_server.log 2>&1 &
+uvicorn query_server:app --host 0.0.0.0 --port 8001 --reload > query_server.log 2>&1 &
+uvicorn pdf_server:app --host 0.0.0.0 --port 8002 --reload > pdf_server.log 2>&1 &
+uvicorn programming_server:app --host 0.0.0.0 --port 8003 --reload > programming_server.log 2>&1 &
+uvicorn server:app --host 0.0.0.0 --port 8000 --reload > main_server.log 2>&1 &
 
 echo "✅ Backend Gateway: http://localhost:8000"
 

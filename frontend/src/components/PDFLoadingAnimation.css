@@ -1,0 +1,118 @@
+.pdf-loader-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 60px;
+    background-color: transparent;
+    font-family: 'Inter', 'Manrope', sans-serif;
+    color: #e5e7eb;
+}
+
+.pdf-loader-title {
+    font-size: 32px;
+    font-weight: 500;
+    margin-bottom: 40px;
+    letter-spacing: -0.02em;
+    color: #f9fafb;
+}
+
+.pdf-loader-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.pdf-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    min-height: 60px; 
+}
+
+.pdf-step-indicator {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+}
+
+.pdf-step-line {
+    position: absolute;
+    top: 24px;
+    bottom: -12px;
+    width: 2px;
+    background-color: #374151;
+    z-index: 1;
+}
+
+.pdf-step.completed .pdf-step-line {
+    background-color: #374151; /* Keep line dark even if completed to match style */
+}
+
+/* Base Circle */
+.pdf-static-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #374151;
+    background-color: #0b1220;
+    z-index: 2;
+    box-sizing: border-box;
+}
+
+/* Active Spinning Circle */
+.pdf-spinner-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #3b82f6; /* Blue spinner */
+    border-top-color: transparent;
+    z-index: 2;
+    box-sizing: border-box;
+    animation: pdf-spin 1s linear infinite;
+}
+
+@keyframes pdf-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.completed-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-color: #3b82f6 !important; /* Theme blue instead of gray */
+    background-color: rgba(59, 130, 246, 0.1) !important;
+    transition: all 0.3s ease-in-out;
+}
+
+.pdf-check-icon {
+    color: #3b82f6;
+    animation: scale-up-check 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes scale-up-check {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.pdf-step.pending .pdf-static-circle {
+    border-color: #374151;
+}
+
+.pdf-step-text {
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 1px;
+    color: #6b7280; /* Gray for pending */
+}
+
+.pdf-step.active .pdf-step-text {
+    color: #3b82f6; /* Blue for currently active */
+}
+
+.pdf-step.completed .pdf-step-text {
+    color: #9ca3af; /* Light gray for finished */
+}

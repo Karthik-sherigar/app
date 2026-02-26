@@ -1,0 +1,290 @@
+.pdf-landing-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 40px;
+    box-sizing: border-box;
+    background-color: #050b14; /* Deep premium dark background */
+    position: relative;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    color: #e2e8f0;
+}
+
+/* Background Gradients & Blurs */
+.pdf-bg-blur {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+}
+.pdf-bg-blur-1 {
+    width: 600px;
+    height: 600px;
+    background: #4f46e5;
+    top: -100px;
+    right: -100px;
+}
+.pdf-bg-blur-2 {
+    width: 400px;
+    height: 400px;
+    background: #ec4899;
+    bottom: -50px;
+    left: -50px;
+}
+.pdf-grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        radial-gradient(circle at center, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Content Container */
+.pdf-landing-content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 550px; /* narrowed from 650px */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Badge */
+.pdf-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #818cf8;
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+}
+
+/* Typography */
+.pdf-landing-title {
+    font-size: 1.85rem;
+    font-weight: 800;
+    margin: 0 0 8px 0;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+    font-family: 'Manrope', 'Inter', sans-serif;
+}
+.text-gradient {
+    background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 40%, #c084fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+}
+.pdf-landing-subtitle {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    max-width: 480px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+/* Dropzone (Glassmorphism & Interactive) */
+.pdf-dropzone {
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+    cursor: pointer;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    padding: 2px; /* Space for glowing animated border */
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-bottom: 20px;
+}
+.pdf-dropzone:hover {
+    transform: translateY(-4px);
+}
+.pdf-dropzone.drag-active {
+    transform: scale(1.02);
+}
+
+.dropzone-border-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(236, 72, 153, 0.6));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+    filter: blur(8px);
+}
+.pdf-dropzone:hover .dropzone-border-glow {
+    opacity: 0.4;
+}
+.pdf-dropzone.drag-active .dropzone-border-glow {
+    opacity: 0.8;
+}
+
+.dropzone-inner {
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 20px;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px dashed rgba(99, 102, 241, 0.3);
+    transition: all 0.3s ease;
+    height: 100%;
+}
+.pdf-dropzone:hover .dropzone-inner {
+    border-color: rgba(99, 102, 241, 0.6);
+    background: rgba(15, 23, 42, 0.95);
+}
+.pdf-dropzone.drag-active .dropzone-inner {
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.08);
+}
+
+/* Icon Pulse */
+.dropzone-icon-container {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+.icon-pulse-ring {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(236,72,153,0.2));
+    border-radius: 50%;
+    animation: icon-pulse 3s infinite ease-in-out;
+}
+@keyframes icon-pulse {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    50% { transform: scale(1.4); opacity: 0; }
+    100% { transform: scale(0.9); opacity: 0; }
+}
+
+/* Typography inside dropzone */
+.dropzone-typography h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin: 0 0 4px 0;
+    transition: color 0.3s ease;
+}
+.gradient-text-active {
+    background: linear-gradient(135deg, #a5b4fc, #f472b6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+}
+
+.dropzone-action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+}
+.action-arrow {
+    display: flex;
+    align-items: center;
+    color: #818cf8;
+}
+
+/* File constraints */
+.file-constraints {
+    display: flex;
+    gap: 8px;
+}
+.constraint-pill {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Feature Grid at the bottom */
+.pdf-features-grid {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.feature-card {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid transparent;
+    transition: all 0.3s ease;
+}
+.feature-card:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.feature-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.1);
+    color: #818cf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.feature-text h4 {
+    margin: 0 0 2px 0;
+    font-size: 0.85rem;
+    color: #f1f5f9;
+    font-weight: 600;
+}
+.feature-text p {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.3;
+}
+
+/* Tailwind Utilities needed explicitly since we use standard CSS */
+.text-indigo-400 { color: #818cf8; }
+.text-indigo-500 { color: #6366f1; }
+.relative { position: relative; }
+.z-10 { z-index: 10; }
+
+@media (max-width: 768px) {
+    .pdf-landing-title { font-size: 2.25rem; }
+    .pdf-features-grid { flex-direction: column; gap: 16px; }
+}

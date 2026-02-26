@@ -12,6 +12,15 @@ const VERBS = [
     "Generating tree"
 ];
 
+const PDF_VERBS = [
+    "Ingesting document",
+    "Extracting content",
+    "Analyzing structure",
+    "Identifying sections",
+    "Mapping relationships",
+    "Generating knowledge tree"
+];
+
 const ICONS = [Network, Database, Brain, Cpu, Zap, Activity];
 
 // Binary Tree Layout: 1 Root -> 2 Children
@@ -101,16 +110,17 @@ const SkeletonEdge = ({ sourceId, targetId, delay }) => {
 
 const GraphLoadingAnimation = ({ mode = 'query' }) => {
     const [verbIndex, setVerbIndex] = useState(0);
+    const currentVerbs = mode === 'pdf' ? PDF_VERBS : VERBS;
 
     // Swap text every 2s
     useEffect(() => {
         const interval = setInterval(() => {
-            setVerbIndex((prev) => (prev + 1) % VERBS.length);
+            setVerbIndex((prev) => (prev + 1) % currentVerbs.length);
         }, 2200);
         return () => clearInterval(interval);
-    }, []);
+    }, [currentVerbs.length]);
 
-    if (mode !== 'query') {
+    if (mode !== 'query' && mode !== 'pdf') {
         return (
             <div className="graph-loading-container minimal">
                 <div className="minimal-loader">
@@ -159,7 +169,7 @@ const GraphLoadingAnimation = ({ mode = 'query' }) => {
 
             <div className="loading-status-overlay">
                 <div className="typewriter-status">
-                    {VERBS[verbIndex]}
+                    {currentVerbs[verbIndex]}
                     <div className="typing-indicator">
                         <div className="typing-dot" />
                         <div className="typing-dot" />

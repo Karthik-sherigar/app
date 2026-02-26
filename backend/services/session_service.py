@@ -17,7 +17,7 @@ if DB_TYPE == "mysql":
     password = os.getenv("MYSQL_PASSWORD", "root")
     host = os.getenv("MYSQL_HOST", "localhost")
     port = os.getenv("MYSQL_PORT", "3306")
-    db_name = os.getenv("MYSQL_DB", "eyephish_db")
+    db_name = os.getenv("MYSQL_DB", "_db")
     # Using pymysql as the driver
     DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
     engine = create_engine(DATABASE_URL)
@@ -35,13 +35,34 @@ class QueryHistory(Base):
     query = Column(String, index=True)
     mode = Column(String, default="query") # Added mode column
     answer = Column(Text)  # JSON string or plain text
+    user_email = Column(String, index=True, nullable=True) # Added user_email for isolation
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class DeepDiveCache(Base):
     __tablename__ = "deep_dive_cache"
     node_id = Column(String, primary_key=True, index=True)
+    mode = Column(String, default="query", index=True) # Added mode for isolation
     data = Column(Text)  # JSON string of the deep dive content
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    full_name = Column(String)
+    hashed_password = Column(String, nullable=True) # Nullable for OAuth users
+    is_verified = Column(Integer, default=0) # 0 = False, 1 = True
+    provider = Column(String, default="email") # "email" or "google"
+    profile_picture = Column(Text, nullable=True) # Base64 or URL
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+class VerificationOTP(Base):
+    __tablename__ = "verification_otps"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    otp_code = Column(String)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class SessionService:
     def __init__(self):
@@ -54,13 +75,13 @@ class SessionService:
         finally:
             db.close()
 
-    def save_query_history(self, query: str, answer_data: str, mode: str = "query"):
+    def save_query_history(self, query: str, answer_data: str, mode: str = "query", user_email: str = None):
         """
         Save a user query and its response to the history.
         """
         try:
             db = SessionLocal()
-            db_item = QueryHistory(query=query, answer=str(answer_data), mode=mode)
+            db_item = QueryHistory(query=query, answer=str(answer_data), mode=mode, user_email=user_email)
             db.add(db_item)
             db.commit()
             db.refresh(db_item)
@@ -71,29 +92,39 @@ class SessionService:
             logger.error(f"Error saving query history: {e}")
             return None
 
-    def get_history(self, limit: int = 50):
+    def get_history(self, limit: int = 50, mode: str = None, user_email: str = None):
         """
-        Retrieve query history ordered by timestamp.
+        Retrieve query history ordered by timestamp, optionally filtered by mode and user email.
         """
         try:
             db = SessionLocal()
-            history = db.query(QueryHistory).order_by(QueryHistory.timestamp.desc()).limit(limit).all()
+            query = db.query(QueryHistory)
+            if mode:
+                query = query.filter(QueryHistory.mode == mode)
+            if user_email:
+                query = query.filter(QueryHistory.user_email == user_email)
+            history = query.order_by(QueryHistory.timestamp.desc()).limit(limit).all()
             db.close()
             return history
         except Exception as e:
             logger.error(f"Error retrieving history: {e}")
             return []
 
-    def clear_history(self):
+    def clear_history(self, mode: str = None, user_email: str = None):
         """
-        optional: Clear all history
+        optional: Clear history, optionally filtered by mode and user email
         """
         try:
             db = SessionLocal()
-            db.query(QueryHistory).delete()
+            query = db.query(QueryHistory)
+            if mode:
+                query = query.filter(QueryHistory.mode == mode)
+            if user_email:
+                query = query.filter(QueryHistory.user_email == user_email)
+            query.delete(synchronize_session=False)
             db.commit()
             db.close()
-            logger.info("Cleared query history.")
+            logger.info(f"Cleared query history (mode={mode}).")
         except Exception as e:
             logger.error(f"Error clearing history: {e}")
 
@@ -149,32 +180,52 @@ class SessionService:
             logger.error(f"Error updating history item {item_id}: {e}")
             return None
 
-    def get_deep_dive(self, node_id: str):
+    def get_deep_dive(self, node_id: str, mode: str = "query"):
         """Get deep dive data from cache if exists."""
         try:
             db = SessionLocal()
-            cache = db.query(DeepDiveCache).filter(DeepDiveCache.node_id == node_id).first()
+            cache = db.query(DeepDiveCache).filter(
+                DeepDiveCache.node_id == node_id,
+                DeepDiveCache.mode == mode
+            ).first()
             db.close()
             return cache
         except Exception as e:
             logger.error(f"Error getting deep dive cache: {e}")
             return None
 
-    def save_deep_dive(self, node_id: str, data: str):
+    def save_deep_dive(self, node_id: str, data: str, mode: str = "query"):
         """Save deep dive data to cache."""
         try:
             db = SessionLocal()
-            # Overwrite if exists
-            existing = db.query(DeepDiveCache).filter(DeepDiveCache.node_id == node_id).first()
+            # Overwrite if exists for this specific mode
+            existing = db.query(DeepDiveCache).filter(
+                DeepDiveCache.node_id == node_id,
+                DeepDiveCache.mode == mode
+            ).first()
             if existing:
                 existing.data = data
                 existing.timestamp = datetime.datetime.now(datetime.timezone.utc)
             else:
-                cache = DeepDiveCache(node_id=node_id, data=data)
+                cache = DeepDiveCache(node_id=node_id, data=data, mode=mode)
                 db.add(cache)
             db.commit()
             db.close()
-            logger.info(f"Cached deep dive for node: {node_id}")
+            logger.info(f"Cached deep dive for node: {node_id} (mode={mode})")
         except Exception as e:
             logger.error(f"Error saving deep dive cache: {e}")
+
+    def clear_deep_dive(self, mode: str = None):
+        """Clear deep dive cache, optionally filtered by mode."""
+        try:
+            db = SessionLocal()
+            query = db.query(DeepDiveCache)
+            if mode:
+                query = query.filter(DeepDiveCache.mode == mode)
+            query.delete(synchronize_session=False)
+            db.commit()
+            db.close()
+            logger.info(f"Cleared deep dive cache (mode={mode}).")
+        except Exception as e:
+            logger.error(f"Error clearing deep dive cache: {e}")
 

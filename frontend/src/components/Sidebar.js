@@ -51,11 +51,11 @@ function Sidebar({
 
   return (
     <aside
-      className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "programming" ? "collapsed" : ""}`}
+      className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "pdf" ? "pdf-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "pdf" && mode !== "programming" ? "collapsed" : ""}`}
       data-testid="sidebar"
     >
       {/* Manual Toggle - Only for modes that don't autohide */}
-      {mode !== "query" && mode !== "programming" && (
+      {mode !== "query" && mode !== "pdf" && mode !== "programming" && (
         <div className="sidebar-toggle-container">
           <button
             className="sidebar-collapse-btn"
@@ -68,83 +68,50 @@ function Sidebar({
       )}
 
       <div className="sidebar-content">
-        {/* INPUT SECTION - Restricted to PDF and Programming */}
-        {mode !== "query" && (
+        {/* INPUT SECTION - Restricted to Programming */}
+        {mode === "programming" && (
           <div className="sidebar-section">
             <h3 className="section-title">
               <FileText size={16} />
               <span>INPUT</span>
             </h3>
 
-            {mode === "pdf" && (
-              <div className="input-container" data-testid="pdf-input-container">
-                <div {...getRootProps()} className="dropzone" data-testid="pdf-dropzone">
-                  <input {...getInputProps()} />
-                  <Upload size={32} />
-                  <p>Drag & drop PDF here</p>
-                  <p className="dropzone-hint">or click to browse</p>
-                </div>
-
-                {pdfFile && (
-                  <div className="file-preview" data-testid="pdf-preview">
-                    <FileText size={20} />
-                    <span>{pdfFile.name}</span>
-                    <button onClick={() => setPdfFile(null)}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-
+            <div className="input-container" data-testid="code-input-container">
+              <div className="code-editor-wrapper">
+                <Editor
+                  height="200px"
+                  defaultLanguage="javascript"
+                  theme="vs-dark"
+                  value={code}
+                  onChange={(value) => setCode(value || "")}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineNumbers: "on",
+                    scrollBeyondLastLine: false
+                  }}
+                />
+              </div>
+              <div className="button-group">
                 <button
                   className="btn-primary"
                   onClick={handleSubmit}
-                  disabled={!pdfFile || loading}
-                  data-testid="generate-pdf-graph-btn"
+                  disabled={!code.trim() || loading}
+                  data-testid="visualize-code-btn"
                 >
                   <Send size={16} />
-                  Generate Graph from PDF
+                  Visualize Code Logic
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={handleClear}
+                  data-testid="clear-code-btn"
+                >
+                  <Trash2 size={16} />
+                  Clear
                 </button>
               </div>
-            )}
-
-            {mode === "programming" && (
-              <div className="input-container" data-testid="code-input-container">
-                <div className="code-editor-wrapper">
-                  <Editor
-                    height="200px"
-                    defaultLanguage="javascript"
-                    theme="vs-dark"
-                    value={code}
-                    onChange={(value) => setCode(value || "")}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 13,
-                      lineNumbers: "on",
-                      scrollBeyondLastLine: false
-                    }}
-                  />
-                </div>
-                <div className="button-group">
-                  <button
-                    className="btn-primary"
-                    onClick={handleSubmit}
-                    disabled={!code.trim() || loading}
-                    data-testid="visualize-code-btn"
-                  >
-                    <Send size={16} />
-                    Visualize Code Logic
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={handleClear}
-                    data-testid="clear-code-btn"
-                  >
-                    <Trash2 size={16} />
-                    Clear
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -180,6 +147,39 @@ function Sidebar({
                     window.dispatchEvent(new Event('export-organic-graph'));
                   }}
                   data-testid="export-graph-btn"
+                >
+                  <Download size={16} />
+                  <span>Export Graph</span>
+                </button>
+              </>
+            ) : mode === 'pdf' ? (
+              <>
+                <button
+                  className="btn-action"
+                  onClick={handleNewQuery}
+                  data-testid="new-pdf-btn"
+                >
+                  <Plus size={16} />
+                  <span>New Upload</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={handleTemporaryQuery}
+                  data-testid="temporary-pdf-btn"
+                >
+                  <Ghost size={16} />
+                  <span>Temporary Upload</span>
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={() => {
+                    const canvas = document.querySelector('.cy-container canvas') || document.querySelector('.organic-tree-container');
+                    if (canvas) {
+                      // Generic export logic
+                      window.dispatchEvent(new Event(mode === 'query' ? 'export-organic-graph' : 'export-graph-snapshot'));
+                    }
+                  }}
+                  data-testid="export-pdf-btn"
                 >
                   <Download size={16} />
                   <span>Export Graph</span>
@@ -234,7 +234,7 @@ function Sidebar({
               <History size={16} />
               <span>RECENT HISTORY</span>
             </h3>
-            {mode === 'query' && history.length > 0 && (
+            {(mode === 'query' || mode === 'pdf') && history.filter(h => h.mode === mode).length > 0 && (
               <button
                 className="delete-all-history-btn"
                 onClick={deleteAllHistory}
@@ -265,7 +265,7 @@ function Sidebar({
                       </span>
                     </div>
                   </div>
-                  {mode === 'query' && (
+                  {(mode === 'query' || mode === 'pdf') && (
                     <button
                       className="delete-history-btn"
                       onClick={(e) => handleDeleteHistory(e, item.id)}
