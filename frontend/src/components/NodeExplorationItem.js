@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Send } from 'lucide-react';
+import { Send, Network, BarChart, Globe, Box, ListChecks, Component, Search, Menu, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import TypingText from './TypingText';
@@ -8,76 +8,89 @@ import SkeletonLoader from './SkeletonLoader';
 import '../App.css';
 import './NodeExplanation.css';
 
-const WikipediaImage = ({ query, fallbackSeed, onClickView, onClickSource }) => {
-    const [imgUrl, setImgUrl] = useState(null);
-    const [sourceUrl, setSourceUrl] = useState(null);
-    const [failed, setFailed] = useState(false);
+const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 
-    useEffect(() => {
-        const fetchWiki = async () => {
-            try {
-                // Simplify query to grab the most prominent entity
-                const cleanQuery = query.split(' - ')[0].split(' — ')[0].trim();
-                const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanQuery)}`);
-                if (!res.ok) throw new Error("Wiki search failed");
-                const data = await res.json();
+const AnimatedTiltCard = ({ query, onClickSource }) => {
+    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+    const cardRef = useRef(null);
 
-                if (data.thumbnail && data.thumbnail.source) {
-                    // Wiki uses smaller thumbnails by default. We can request a larger size by tweaking URL format if needed, but the provided source is usually decent.
-                    setImgUrl(data.thumbnail.source);
-                    setSourceUrl(data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(cleanQuery)}`);
-                } else {
-                    setFailed(true);
-                }
-            } catch (err) {
-                setFailed(true);
-            }
-        };
-        fetchWiki();
-    }, [query]);
+    const handleMouseMove = (e) => {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        setMousePosition({ x, y });
+    };
 
-    // Fallback visually pleasing internet placeholder if Wiki entity has no hero image
-    const finalUrl = failed ? `https://picsum.photos/seed/${encodeURIComponent(fallbackSeed)}/400/300` : imgUrl;
-    const finalSource = failed ? `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}` : sourceUrl;
+    const handleMouseLeave = () => {
+        setMousePosition({ x: 0, y: 0 }); // Center back to origin
+    };
+
+    const getIcon = () => {
+        const lowerQuery = (query || "").toLowerCase();
+        if (lowerQuery.includes('architecture')) return <Network size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+        if (lowerQuery.includes('infographic') || lowerQuery.includes('chart')) return <BarChart size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+        if (lowerQuery.includes('real-world') || lowerQuery.includes('example')) return <Globe size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+        if (lowerQuery.includes('process') || lowerQuery.includes('step')) return <ListChecks size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+        if (lowerQuery.includes('component')) return <Component size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+        return <Box size={64} strokeWidth={1.2} style={{ stroke: 'url(#gradient-wireframe)' }} className="tilt-wireframe-svg" />;
+    };
 
     return (
-        <div className="node-explore-image-preview">
-            {!finalUrl ? (
-                <div className="node-explore-image-fallback" style={{ fontSize: '18px' }}>Loading...</div>
-            ) : (
-                <>
-                    <img
-                        src={finalUrl}
-                        alt={query}
-                        loading="lazy"
-                        onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                        }}
-                    />
-                    <div className="node-explore-image-fallback" style={{ display: 'none' }}>🔍</div>
-                    <div className="node-explore-image-hover-overlay">
-                        <button className="img-hover-btn" onClick={() => onClickView(finalUrl)}>View</button>
-                        <a href={finalSource} target="_blank" rel="noopener noreferrer" className="img-hover-btn outline">Open Source</a>
-                    </div>
-                </>
-            )}
-        </div>
+        <motion.div 
+            ref={cardRef}
+            className="tilt-interactive-card"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            whileHover={{ scale: 1.02, y: -5 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20, mass: 0.5 }}
+            onClick={onClickSource}
+        >
+            <div className="tilt-glow" style={{
+                background: `radial-gradient(circle at ${mousePosition.x || 150}px ${mousePosition.y || 100}px, rgba(99, 102, 241, 0.25) 0%, transparent 50%)`
+            }} />
+            <div className="tilt-icon-container">
+                <svg width="0" height="0">
+                    <defs>
+                        <linearGradient id="gradient-wireframe" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#a855f7" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                {getIcon()}
+            </div>
+            <div className="tilt-content">
+                <div className="tilt-action-btn-wrapper">
+                    <button className="tilt-action-btn">
+                        Open Knowledge Source ↗
+                    </button>
+                </div>
+            </div>
+        </motion.div>
     );
 };
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const NodeExplorationItem = ({ data, onUpdate }) => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState(data.activeTab || 'text');
     const [selectedImageDialog, setSelectedImageDialog] = useState(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
+        setIsMobileMenuOpen(false);
         if (onUpdate) onUpdate({ ...data, activeTab: tabId });
     };
+
+    const tabsList = [
+        { id: 'text', label: 'Text Response' },
+        { id: 'refs', label: 'External References' },
+        { id: 'images', label: 'Images' },
+        { id: 'videos', label: 'Videos' },
+    ];
+    
+    const currentTabLabel = tabsList.find(t => t.id === activeTab)?.label || 'Menu';
 
     if (!data) return null;
 
@@ -91,30 +104,37 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
             </div>
 
             {/* Tab bar */}
-            <div className="node-explore-tabs">
-                {[
-                    { id: 'text', label: 'Text Response' },
-                    { id: 'refs', label: 'External References' },
-                    { id: 'images', label: 'Images' },
-                    { id: 'videos', label: 'Videos' },
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        className={`node-explore-tab-btn${activeTab === tab.id ? ' active' : ''}`}
-                        onClick={() => handleTabChange(tab.id)}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-
-                {/* Explore More Button (Last) */}
-                <button
-                    className="node-explore-tab-btn explore-more-btn"
-                    onClick={() => navigate(`/explore/${data.nodeId}${data.rootQuery ? `?topic=${encodeURIComponent(data.rootQuery)}` : ''}`)}
-                    style={{ marginLeft: 'auto', backgroundColor: 'rgba(50, 150, 255, 0.2)', color: '#4da6ff' }}
+            <div className="node-explore-tabs-container">
+                {/* Mobile Tab Toggler */}
+                <button 
+                    className="node-explore-mobile-tab-toggle" 
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
-                    Explore More ↗
+                    <Menu size={18} />
+                    <span>{currentTabLabel}</span>
+                    <ChevronDown size={18} className={`node-explore-mobile-chevron ${isMobileMenuOpen ? 'open' : ''}`} />
                 </button>
+
+                <div className={`node-explore-tabs ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+                    {tabsList.map(tab => (
+                        <button
+                            key={tab.id}
+                            className={`node-explore-tab-btn${activeTab === tab.id ? ' active' : ''}`}
+                            onClick={() => handleTabChange(tab.id)}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+
+                    {/* Explore More Button (Last) */}
+                    <button
+                        className="node-explore-tab-btn explore-more-btn"
+                        onClick={() => navigate(`/explore/${data.nodeId}${data.rootQuery ? `?topic=${encodeURIComponent(data.rootQuery)}` : ''}`)}
+                        style={{ marginLeft: 'auto', backgroundColor: 'rgba(50, 150, 255, 0.2)', color: '#4da6ff' }}
+                    >
+                        Explore More ↗
+                    </button>
+                </div>
             </div>
 
             {/* Tab content */}
@@ -194,18 +214,31 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
                         return (
                             <motion.div key="images" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-images" >
                                 {imgs.map((img, i) => (
-                                    <div key={i} className="node-explore-image-item">
-                                        <WikipediaImage
-                                            query={`${data.nodeLabel} ${img.title}`}
-                                            fallbackSeed={data.nodeLabel + img.title}
-                                            onClickView={setSelectedImageDialog}
-                                            onClickSource={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(data.nodeLabel + ' ' + img.title)}`)}
-                                        />
-                                        <div className="node-explore-image-info">
-                                            <span className="node-explore-image-title">{img.title}</span>
-                                            {img.description && <p className="node-explore-image-desc">{img.description}</p>}
+                                    <motion.a 
+                                        key={i} 
+                                        href={img.url || img.googleSearchUrl || `https://www.google.com/search?tbm=isch&q=${encodeURIComponent((data.nodeLabel || '') + ' ' + img.title)}`}
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="modern-image-card"
+                                        whileHover={{ y: -4 }}
+                                    >
+                                        <div className="modern-image-thumb">
+                                            {img.url && !img.url.includes('google.com') ? (
+                                                <img src={img.url} alt={img.title} className="modern-image-real" />
+                                            ) : (
+                                                <div className="modern-image-placeholder">
+                                                    <div className="mip-icon-ring"><Search size={24} /></div>
+                                                    <div className="mip-text">
+                                                        <span>Search Gallery</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
+                                        <div className="modern-image-info">
+                                            <span className="modern-image-title">{img.title || "Graphic Example"}</span>
+                                            {img.description && <p className="modern-image-desc">{img.description}</p>}
+                                        </div>
+                                    </motion.a>
                                 ))}
                                 {imgs.length === 0 && (
                                     <p className="node-explore-empty">No images available.</p>

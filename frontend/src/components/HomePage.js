@@ -5,51 +5,17 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import './HomePage.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
 
-const HomePage = ({ setMode, history, onLogout }) => {
-    const fileInputRef = useRef(null);
+const HomePage = ({ setMode, history, onLogout, onRestore }) => {
     const [userName, setUserName] = useState(localStorage.getItem('userName') || 'Explorer');
-    const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail') || '');
-    const [profilePic, setProfilePic] = useState(localStorage.getItem('profilePic') || null);
-    const [joinDate, setJoinDate] = useState(localStorage.getItem('joinDate') || new Date().toISOString());
+    
+    // Tab state for history
+    const [activityTab, setActivityTab] = useState('query');
 
-    // Filter history logic (Optional: grab top 10 recent searches)
-    const recentActivity = history ? history.slice(0, 8) : [];
-
-    // Fallback initials generator
-    const getInitials = (name) => {
-        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    };
-
-    const handleImageUpload = async (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            if (file.size > 2 * 1024 * 1024) { // 2MB limit
-                toast.error("Image must be smaller than 2MB");
-                return;
-            }
-            
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                const base64String = reader.result;
-                setProfilePic(base64String);
-                localStorage.setItem('profilePic', base64String);
-                
-                try {
-                    await axios.put(`${API}/auth/profile-picture`, {
-                        email: userEmail,
-                        profile_picture: base64String
-                    });
-                    toast.success("Profile picture updated!");
-                } catch (err) {
-                    toast.error("Failed to sync profile picture to server.");
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+    // Filter history logic based on tabs
+    const filteredHistory = history ? history.filter(item => item.mode === activityTab).slice(0, 6) : [];
 
     const formatDate = (dateString) => {
         const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -58,10 +24,24 @@ const HomePage = ({ setMode, history, onLogout }) => {
 
     const formatHistoryTime = (timestampStr) => {
         if (!timestampStr) return "Unknown";
-        // Attempt to parse 'YYYY-MM-DDTHH:MM:SS.mmmmmm' format from Python sqlite backend
-        const parsed = new Date(timestampStr + 'Z'); // Add Z to fix missing timezone forcing GMT
-        if (isNaN(parsed.getTime())) return "Recent";
-        return parsed.toLocaleDateString() + ' ' + parsed.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Standardize Python SQLAlchemy SQLite format ("YYYY-MM-DD HH:MM:SS") to standard JS ISO 8601
+        let safeStr = timestampStr;
+        if (safeStr.includes(' ') && !safeStr.includes('T')) {
+            safeStr = safeStr.replace(' ', 'T');
+        }
+        if (!safeStr.endsWith('Z')) {
+            safeStr += 'Z'; // Force UTC conversion
+        }
+
+        const parsed = new Date(safeStr);
+        if (isNaN(parsed.getTime())) {
+            return timestampStr.split('.')[0] || "Recent";
+        }
+        
+        const dateOpts = { month: 'short', day: 'numeric', year: 'numeric' };
+        const timeOpts = { hour: '2-digit', minute:'2-digit' };
+        return `${parsed.toLocaleDateString(undefined, dateOpts)} — ${parsed.toLocaleTimeString(undefined, timeOpts)}`;
     };
 
     return (
@@ -80,46 +60,7 @@ const HomePage = ({ setMode, history, onLogout }) => {
 
             <div className="home-content-grid">
                 
-                {/* Profile Section (Right Side on Tablet/desktop, Top on Mobile) */}
-                <motion.div 
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="profile-section card-glass"
-                >
-                    <div className="profile-card">
-                        <div className="avatar-wrapper" onClick={() => fileInputRef.current?.click()}>
-                            {profilePic ? (
-                                <img src={profilePic} alt="Profile" className="profile-image" />
-                            ) : (
-                                <div className="profile-avatar-fallback">
-                                    {getInitials(userName)}
-                                </div>
-                            )}
-                            <div className="avatar-overlay">
-                                <Camera size={18} />
-                            </div>
-                        </div>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            style={{ display: 'none' }} 
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                        />
-                        
-                        <div className="profile-info">
-                            <h2>{userName}</h2>
-                            <p className="email-text">{userEmail}</p>
-                            <span className="join-date">Joined {formatDate(joinDate)}</span>
-                        </div>
 
-                        <button className="logout-btn" onClick={onLogout}>
-                            <LogOut size={16} />
-                            <span>Sign Out</span>
-                        </button>
-                    </div>
-                </motion.div>
 
                 {/* Modes Dashboard */}
                 <div className="modes-section">
@@ -165,6 +106,38 @@ const HomePage = ({ setMode, history, onLogout }) => {
                     </div>
                 </div>
 
+                {/* Key Features Section / Platform Capabilities */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="home-features-section"
+                >
+                    <h2 className="section-title">Platform Capabilities</h2>
+                    <div className="features-grid">
+                        <motion.div className="feature-card card-glass" whileHover={{ y: -4 }}>
+                            <div className="feature-icon"><Search size={22} /></div>
+                            <h4>Web Intelligence</h4>
+                            <p>Perform deep real-time web searches to construct interactive, organic knowledge graphs on any topic.</p>
+                        </motion.div>
+                        <motion.div className="feature-card card-glass" whileHover={{ y: -4 }}>
+                            <div className="feature-icon"><FileText size={22} /></div>
+                            <h4>Document Synthesis</h4>
+                            <p>Extract core concepts and map timeline-based learning journeys directly from dense PDF files.</p>
+                        </motion.div>
+                        <motion.div className="feature-card card-glass" whileHover={{ y: -4 }}>
+                            <div className="feature-icon"><Code2 size={22} /></div>
+                            <h4>Codebase Mapping</h4>
+                            <p>Reverse-engineer complex programming logic to generate interactive software dependency trees.</p>
+                        </motion.div>
+                        <motion.div className="feature-card card-glass" whileHover={{ y: -4 }}>
+                            <div className="feature-icon"><History size={22} /></div>
+                            <h4>Persistent Discovery</h4>
+                            <p>Automatically save, resume, and organically expand your expedition journeys over time.</p>
+                        </motion.div>
+                    </div>
+                </motion.div>
+
                 {/* Activity History Section */}
                 <motion.div 
                     initial={{ opacity: 0, y: 30 }}
@@ -176,11 +149,17 @@ const HomePage = ({ setMode, history, onLogout }) => {
                         <History size={20} />
                         <h2>Recent Expeditions</h2>
                     </div>
+
+                    <div className="activity-tabs">
+                        <button className={`activity-tab ${activityTab === 'query' ? 'active' : ''}`} onClick={() => setActivityTab('query')}>Query Mode</button>
+                        <button className={`activity-tab ${activityTab === 'pdf' ? 'active' : ''}`} onClick={() => setActivityTab('pdf')}>Document Mode</button>
+                        <button className={`activity-tab ${activityTab === 'programming' ? 'active' : ''}`} onClick={() => setActivityTab('programming')}>Developer Mode</button>
+                    </div>
                     
-                    <div className="activity-list">
-                        {recentActivity.length > 0 ? (
-                            recentActivity.map((item, idx) => (
-                                <div key={item.id || idx} className="activity-item">
+                    <div className="activity-grid">
+                        {filteredHistory.length > 0 ? (
+                            filteredHistory.map((item, idx) => (
+                                <div key={item.id || idx} className="activity-card" onClick={() => onRestore ? onRestore(item) : setMode(item.mode || 'query')}>
                                     <div className={`activity-mode-tag ${item.mode}`}>
                                         {item.mode === 'query' ? <Search size={14}/> : item.mode === 'pdf' ? <FileText size={14} /> : <Code2 size={14}/>}
                                         <span>{item.mode?.toUpperCase() || 'QUERY'}</span>
@@ -191,22 +170,35 @@ const HomePage = ({ setMode, history, onLogout }) => {
                                     </div>
                                     <button 
                                         className="activity-resume" 
-                                        onClick={() => setMode(item.mode || 'query')} 
+                                        onClick={() => onRestore ? onRestore(item) : setMode(item.mode || 'query')} 
                                         title="Jump to Module"
                                     >
-                                        <ArrowRight size={16} />
+                                        <ArrowRight size={18} />
                                     </button>
                                 </div>
                             ))
                         ) : (
                             <div className="activity-empty">
-                                <p>No expeditions found. Start mapping your knowledge!</p>
+                                <p>No expeditions found for {activityTab} mode. Start mapping your knowledge!</p>
                             </div>
                         )}
                     </div>
                 </motion.div>
 
             </div>
+
+            {/* Premium SaaS Footer */}
+            <footer className="home-footer">
+                <div className="footer-divider"></div>
+                <div className="footer-content">
+                    <div className="footer-logo">
+                        <span className="highlight-gradient" style={{ fontWeight: 'bold', fontSize: '18px' }}>Knowledge Synthesizer</span>
+                    </div>
+                    <p className="footer-tagline">Advanced Agentic Knowledge Synthesis & Graph Exploration.</p>
+                    <p className="footer-copyright">© {new Date().getFullYear()} Knowledge Intelligence. All rights reserved.</p>
+                </div>
+            </footer>
+
         </div>
     );
 };

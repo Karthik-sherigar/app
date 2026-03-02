@@ -45,7 +45,7 @@ export default function ProgrammingView({
         setShowTerminal(true);
         setExecutionResult(null);
         try {
-            const apiBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+            const apiBase = process.env.REACT_APP_BACKEND_URL || '';
             const response = await axios.post(`${apiBase}/api/execute-code`, {
                 code,
                 language

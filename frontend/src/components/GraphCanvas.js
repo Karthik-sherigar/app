@@ -207,7 +207,12 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
       container.addEventListener('wheel', handleWheel, { passive: false });
     }
 
-    // Add elements
+    // Calculate root positions to start animation from
+    const getStartingPosition = (nodeType) => {
+      // Typically concepts start from center and expand outwards
+      return { x: cy.width() / 2, y: cy.height() / 2 };
+    };
+
     const elements = [
       ...graphData.nodes.map(node => ({
         data: {
@@ -216,7 +221,8 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
           type: node.type,
           description: node.description,
           importance: node.importance
-        }
+        },
+        position: getStartingPosition(node.type) // Start all nodes from center before layout scatters them
       })),
       ...graphData.edges.map(edge => ({
         data: {
@@ -351,19 +357,21 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
       const layoutOptions = mode === 'programming' ? {
         name: 'dagre',
         rankDir: 'TB',
-        nodeSep: 150, // Increased spacing
-        rankSep: 250, // Increased spacing
+        nodeSep: 150, 
+        rankSep: 250, 
         padding: 50,
         fit: true,
         animate: shouldAnimate,
-        animationDuration: 500
+        animationDuration: 1400,
+        animationEasing: 'ease-out-expo'
       } : mode === 'query' ? {
         name: 'breadthfirst',
         directed: true,
-        spacingFactor: 1.8, // Increased spacing
+        spacingFactor: 1.8, 
         padding: 50,
         animate: shouldAnimate,
-        animationDuration: 800,
+        animationDuration: 1800,
+        animationEasing: 'ease-out-quint',
         fit: true,
         avoidOverlap: true,
         nodeDimensionsIncludeLabels: true
@@ -371,7 +379,8 @@ function GraphCanvas({ graphData, onNodeClick, selectedNode, externalSelectedNod
         name: 'cose',
         randomize: false,
         animate: shouldAnimate,
-        animationDuration: 1000,
+        animationDuration: 1800,
+        animationEasing: 'ease-out-quint',
         padding: 50,
         nodeOverlap: 20,
         componentSpacing: 100,

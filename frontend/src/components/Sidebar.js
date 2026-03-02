@@ -18,7 +18,9 @@ function Sidebar({
   onShowFullHistory,
   loading,
   isCollapsed,
-  setIsCollapsed
+  setIsCollapsed,
+  isMobileOpen,
+  setMobileOpen
 }) {
   const [pdfFile, setPdfFile] = useState(null);
   const [code, setCode] = useState("");
@@ -50,10 +52,14 @@ function Sidebar({
   };
 
   return (
-    <aside
-      className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "pdf" ? "pdf-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "pdf" && mode !== "programming" ? "collapsed" : ""}`}
-      data-testid="sidebar"
-    >
+    <>
+      {isMobileOpen && (
+        <div className="sidebar-mobile-overlay" onClick={() => setMobileOpen(false)} />
+      )}
+      <aside
+        className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "pdf" ? "pdf-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "pdf" && mode !== "programming" ? "collapsed" : ""} ${isMobileOpen ? "mobile-open" : ""}`}
+        data-testid="sidebar"
+      >
       {/* Manual Toggle - Only for modes that don't autohide */}
       {mode !== "query" && mode !== "pdf" && mode !== "programming" && (
         <div className="sidebar-toggle-container">
@@ -295,7 +301,8 @@ function Sidebar({
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

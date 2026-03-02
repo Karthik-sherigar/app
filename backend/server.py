@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import logging
@@ -260,11 +261,6 @@ async def deep_dive_proxy(request: Request):
 async def generate_image(request: Request):
     """Generate an image using Freepik's Mystic AI API with caching"""
     import asyncio
-
-    FREEPIK_API_KEY = os.environ.get("FREEPIK_API_KEY", "")
-    if not FREEPIK_API_KEY:
-        raise HTTPException(status_code=500, detail="Freepik API key not configured")
-
     try:
         body = await request.json()
         prompt = body.get("prompt", "")
@@ -285,84 +281,51 @@ async def generate_image(request: Request):
             cached = session_service.get_deep_dive(cache_key, mode=mode)
             if cached:
                 cached_data = json.loads(cached.data)
-                if cached_data.get("imageUrl"):
+                # Serve base64 image or old pollinations url
+                if cached_data.get("imageUrl") and ("base64," in cached_data["imageUrl"] or "pollinations.ai" in cached_data["imageUrl"]):
                     logging.info(f"Serving image from cache for: {cache_key} (mode={mode})")
                     return {"image_url": cached_data["imageUrl"]}
 
+        # Use Freepik Synchronous Text-To-Image endpoint for high speed
+        # Fallback to hardcoded key if .env is missing it
+        freepik_key = os.environ.get("FREEPIK_API_KEY", "FPSX9e484a8f9e1bff7530a4c8249db38398")
         headers = {
-            "x-freepik-api-key": FREEPIK_API_KEY,
+            "x-freepik-api-key": freepik_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
+        }
+        
+        # Adding constraints to fix the "alien language" issue
+        payload = {
+            "prompt": f"{prompt}. Highly detailed, clear conceptual illustration, professional layout, 8k resolution, cinematic lighting. ABSOLUTELY NO text, NO words, NO letters, NO labels",
+            "negative_prompt": "text, words, letters, typography, fonts, watermark, labels, alien language, gibberish",
         }
 
-        # Step 1: Create image generation task
-        create_payload = {
-            "prompt": prompt,
-            "negative_prompt": "text, watermarks, blurry, low quality",
-            "aspect_ratio": "square_1_1",
-            "model": "realism",
-            "filter_nsfw": True
-        }
+        image_url = None
+        logging.info(f"Creating Synchronous Freepik task for: {prompt}")
+        resp = await client.post("https://api.freepik.com/v1/ai/text-to-image", headers=headers, json=payload, timeout=25.0)
 
-        logging.info(f"Creating Freepik task for prompt: {prompt}")
-        create_resp = await client.post(
-            "https://api.freepik.com/v1/ai/mystic",
-            headers=headers,
-            json=create_payload,
-            timeout=30.0
-        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("data") and len(data["data"]) > 0:
+                base64_str = data["data"][0].get("base64")
+                if base64_str:
+                    image_url = f"data:image/jpeg;base64,{base64_str}"
+        
+        # If Freepik failed or timed out, fallback to an empty string silently or throw
+        if not image_url:
+            logging.error(f"Freepik Sync Error: {resp.status_code} - {resp.text}")
+            raise HTTPException(status_code=502, detail="Image generation failed")
 
-        if create_resp.status_code not in (200, 201, 202):
-            logging.error(f"Freepik create error {create_resp.status_code}: {create_resp.text}")
-            raise HTTPException(status_code=502, detail=f"Freepik API error: {create_resp.text}")
+        # Update cache with imageUrl (sharing same mode logic)
+        if node_id:
+            cached = session_service.get_deep_dive(cache_key, mode=mode)
+            if cached:
+                cached_data = json.loads(cached.data)
+                cached_data["imageUrl"] = image_url
+                session_service.save_deep_dive(cache_key, json.dumps(cached_data), mode=mode)
 
-        create_data = create_resp.json()
-        task_id = create_data.get("data", {}).get("task_id") or create_data.get("task_id")
-
-        if not task_id:
-            logging.error(f"No task_id in Freepik response: {create_data}")
-            raise HTTPException(status_code=502, detail="No task_id returned from Freepik API")
-
-        # Step 2: Poll for completion (max 90s)
-        max_polls = 30
-        for poll_num in range(max_polls):
-            await asyncio.sleep(3)
-
-            status_resp = await client.get(
-                f"https://api.freepik.com/v1/ai/mystic/{task_id}",
-                headers=headers,
-                timeout=15.0
-            )
-
-            if status_resp.status_code != 200:
-                logging.warning(f"Freepik poll status error {status_resp.status_code}: {status_resp.text}")
-                continue
-
-            status_data = status_resp.json()
-            status = status_data.get("data", {}).get("status") or status_data.get("status")
-
-            if status == "COMPLETED":
-                images = status_data.get("data", {}).get("generated", [])
-                if images:
-                    # generated is a list of URL strings per official docs
-                    image_url = images[0] if isinstance(images[0], str) else images[0].get("url", "")
-                    
-                    # Update cache with imageUrl (sharing same mode logic)
-                    if node_id:
-                        cached = session_service.get_deep_dive(cache_key, mode=mode)
-                        if cached:
-                            cached_data = json.loads(cached.data)
-                            cached_data["imageUrl"] = image_url
-                            session_service.save_deep_dive(cache_key, json.dumps(cached_data), mode=mode)
-
-                    return {"image_url": image_url}
-                break
-            elif status in ("FAILED", "ERROR", "CONTENT_MODERATION"):
-                raise HTTPException(status_code=502, detail=f"Freepik image generation failed with status: {status}")
-
-        raise HTTPException(status_code=504, detail="Image generation timed out")
+        return {"image_url": image_url}
 
     except HTTPException:
         raise
@@ -381,6 +344,35 @@ async def health_check():
             "programming": PROGRAMMING_SERVER_URL
         }
     }
+
+# ---------------------------------------------------------
+# Serve React Frontend Build
+# ---------------------------------------------------------
+frontend_build_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "build")
+
+# Serve the 'static' folder (js/css/media) directly
+if os.path.exists(os.path.join(frontend_build_dir, "static")):
+    app.mount("/static", StaticFiles(directory=os.path.join(frontend_build_dir, "static")), name="static")
+
+# Catch-all route to serve the SPA index.html or other root files
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    # Do not intercept API calls
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API route not found")
+        
+    # Check if a specific file exists (like favicon.ico, manifest.json, robots.txt)
+    file_path = os.path.join(frontend_build_dir, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # Otherwise, return the main index.html for React Router to handle
+    index_path = os.path.join(frontend_build_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    
+    raise HTTPException(status_code=404, detail="Frontend build missing. Run 'npm run build' inside frontend directory.")
+
 
 if __name__ == "__main__":
     import uvicorn

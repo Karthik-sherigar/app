@@ -6,7 +6,7 @@ import {
     ChevronLeft, BookOpen, Sparkles, FileText, 
     Zap, Target, Send, Bot, User, Brain, 
     Sigma, ListTree, HelpCircle, Loader2,
-    Code, History, Maximize2, Minimize2
+    Code, History, Maximize2, Minimize2, X, MessageSquare
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -14,7 +14,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import './PDFExplorationPage.css';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 
 const PDFExplorationPage = () => {
     const location = useLocation();
@@ -31,6 +31,7 @@ const PDFExplorationPage = () => {
     const [userInput, setUserInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
     const chatEndRef = useRef(null);
 
     useEffect(() => {
@@ -148,12 +149,11 @@ const PDFExplorationPage = () => {
         <div className="pdf-explore-app">
             <nav className="explore-nav">
                 <button onClick={() => {
-                    if (window.history.length > 2) {
-                        navigate(-1);
-                    } else if (historyId) {
-                        navigate(`/?restoreMode=pdf&historyId=${historyId}`);
+                    if (historyId) {
+                        // Directly force a fresh reload of the main App initialized to target restoration under the correct /path
+                        window.location.href = `/pdf?restoreMode=pdf&historyId=${historyId}`;
                     } else {
-                        navigate('/?mode=pdf');
+                        navigate('/pdf');
                     }
                 }} className="back-btn">
                     <ChevronLeft size={20} />
@@ -220,7 +220,15 @@ const PDFExplorationPage = () => {
                     </div>
                 </main>
 
-                <aside className={`ai-study-partner${isExpanded ? ' expanded' : ''}`}>
+                <aside className={`ai-study-partner ${isExpanded ? ' expanded' : ''} ${isMobileChatOpen ? 'mobile-open' : ''}`}>
+                    
+                    {/* Mobile Only Header Close Button */}
+                    <button 
+                        className="mobile-close-chat-btn"
+                        onClick={() => setIsMobileChatOpen(false)}
+                    >
+                        <X size={20} />
+                    </button>
                     <div className="partner-header">
                         <Bot size={20} />
                         <h3>AI Study Partner</h3>
@@ -301,6 +309,14 @@ const PDFExplorationPage = () => {
                         </button>
                     </form>
                 </aside>
+                
+                {/* Mobile Floating Chat Toggle Button */}
+                <button 
+                    className={`mobile-chat-fab ${isMobileChatOpen ? 'hidden' : ''}`}
+                    onClick={() => setIsMobileChatOpen(true)}
+                >
+                    <MessageSquare size={24} />
+                </button>
             </div>
         </div>
     );

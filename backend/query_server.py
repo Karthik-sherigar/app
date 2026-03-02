@@ -231,20 +231,37 @@ async def explain_node(request: Request):
         wiki_slug = node_label.replace(' ', '_')
         google_img_base = f"https://www.google.com/search?tbm=isch&q={node_label.replace(' ', '+')}"
 
-        # Native helper to scrape a real YouTube video ID dynamically to avoid LLM hallucination (RickRolling)
-        def get_real_youtube_embed(query):
-            import urllib.request, urllib.parse, re
+        # Native helper to scrape real YouTube video IDs dynamically to avoid LLM hallucination
+        def get_real_youtube_embeds(query, max_results=5):
+            import urllib.request, urllib.parse, re, json
+            videos = []
             try:
                 search_query = urllib.parse.quote(query + " tutorial explained")
-                html = urllib.request.urlopen(f"https://www.youtube.com/results?search_query={search_query}", timeout=3).read().decode()
+                html = urllib.request.urlopen(f"https://www.youtube.com/results?search_query={search_query}", timeout=4).read().decode()
                 video_ids = re.findall(r"watch\?v=(\S{11})", html)
-                if video_ids:
-                    return f"https://www.youtube.com/watch?v={video_ids[0]}"
+                
+                # Deduplicate while preserving order
+                seen = set()
+                unique_ids = []
+                for vid in video_ids:
+                    if vid not in seen:
+                        seen.add(vid)
+                        unique_ids.append(vid)
+                        if len(unique_ids) >= max_results:
+                            break
+                            
+                for i, vid_id in enumerate(unique_ids):
+                    videos.append({
+                        "title": f"Educational Video {i+1} on {query}",
+                        "embedUrl": f"https://www.youtube.com/watch?v={vid_id}",
+                        "description": f"A comprehensive YouTube tutorial and conceptual dive regarding {query}."
+                    })
             except Exception as e:
                 logging.warning(f"YouTube scrape failed: {e}")
-            return "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Standard safe fallback if network fails
+            
+            return json.dumps(videos, indent=4)
 
-        real_vid_url = get_real_youtube_embed(node_label)
+        videos_json_str = get_real_youtube_embeds(node_label)
 
         prompt = f"""You are an expert educator. Generate a comprehensive, structured explanation for the concept: "{node_label}"
 Context: {context}
@@ -335,13 +352,7 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
       "description": "Flowcharts and step-by-step visual guides illustrating how {node_label} works as a process or workflow."
     }}
   ],
-  "videos": [
-    {{
-       "title": "{node_label} Explained - Video Tutorial",
-       "embedUrl": "{real_vid_url}",
-       "description": "A high-quality educational video explaining {node_label}."
-    }}
-  ]
+  "videos": {videos_json_str}
 }}"""
 
         explanation = None
@@ -396,13 +407,16 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
 async def ask_node(request: AskNodeRequest):
     try:
         prompt = f"""
-        You are an expert on the concept: "{request.nodeLabel}".
+        You are an elite academic professor and expert on the concept: "{request.nodeLabel}".
         Context provided: {request.context}
 
         User Question: {request.question}
 
-        Provide a concise, specific answer based on the context and your knowledge of {request.nodeLabel}.
-        Do not branch into unrelated topics.
+        Provide a highly formal, comprehensively structured answer based on the context and your knowledge of {request.nodeLabel}. 
+        CRITICAL RULES:
+        1. You MUST use Markdown formatting entirely.
+        2. Use clear paragraph separations, bold text for key terms, and bulleted lists where applicable.
+        3. Do not branch into unrelated topics. Keep a serious, pedagogical tone.
         """
         
         answer = None
@@ -454,9 +468,9 @@ async def deep_dive(request: DeepDiveRequest):
 
 STRICT RULES (MUST FOLLOW EXACTLY):
 1. CATEGORY: Analyze the topic and context. Pick the MOST RELEVANT category from: COMP_SCI, SCIENCE, HUMANITIES, MEDICAL, or GENERAL. (e.g., World War 2 must be HUMANITIES, Biology must be SCIENCE).
-2. OVERVIEW: Must be a single PLAIN TEXT STRING (300+ words). Do NOT use JSON objects or arrays. Separate sections with a blank line using the literal text \\n\\n.
-3. MODULE CONTENT: For 'steps' or 'derivation' types, write EACH step as a NUMBERED item on its OWN LINE using \\n.
-4. imagePrompt: A single descriptive sentence for an academic scientific or historical diagram.
+2. OVERVIEW: Must be a highly detailed, textbook-level explanation of the topic (at least 600-800 words). Break it down thoroughly. Use multiple paragraphs separated by \\n\\n.
+3. MODULE CONTENT: For 'steps' or 'derivation' types, write EACH step as a NUMBERED item on its OWN LINE using \\n. EACH step must contain an exhaustive, highly detailed paragraph of information (at least 150 words per step). Do NOT just output short sentences, it must feel like reading an encyclopedic textbook.
+4. imagePrompt: A single descriptive sentence for an academic scientific, technological, or historical diagram. Keep it concept-art focused and tell the prompt to strictly avoid generating text/words inside the image.
 5. ALL values must be plain strings. Zero nested JSON objects as field values.
 
 Return ONLY this valid JSON:

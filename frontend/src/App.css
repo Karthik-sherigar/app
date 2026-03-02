@@ -43,6 +43,32 @@ h4 {
   font-family: 'Manrope', sans-serif;
 }
 
+/* Custom Themed Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
+}
+
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) var(--bg-primary);
+}
+
 .app {
   width: 100vw;
   height: 100vh;
@@ -136,11 +162,8 @@ h4 {
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  font-size: 12px;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .status-dot {
@@ -2774,5 +2797,100 @@ h4 {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS OVERRIDES
+   ========================================= */
+
+@media (max-width: 768px) {
+  /* 
+     Hide the normal sidebar layout structure on mobile.
+     Convert to a completely detached off-canvas slider.
+  */
+  .sidebar {
+    position: fixed !important;
+    top: 64px !important; /* Below Navbar */
+    left: -100% !important; /* Hidden off-screen */
+    width: 280px !important; /* Force width */
+    height: calc(100vh - 64px) !important;
+    z-index: 2000 !important;
+    transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1) !important;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8) !important;
+    opacity: 1 !important;
+  }
+
+  /* When the 'mobile-open' state is true, slide it in */
+  .sidebar.mobile-open {
+    left: 0 !important;
+  }
+
+  /* Restore text display on mobile slider even if 'autohide' is somehow attached */
+  .sidebar .section-title span,
+  .sidebar .btn-action span,
+  .sidebar .history-preview-classic,
+  .sidebar .history-meta,
+  .sidebar .input-container {
+    display: flex !important;
+  }
+
+  /* Force solid opaque background to block out graph elements underneath */
+  .sidebar {
+    background: #0f172a !important; /* Tailwind Slate 900 */
+  }
+
+  /* Reset alignment and padding from the desktop autohide states */
+  .sidebar .sidebar-section {
+    align-items: stretch !important;
+  }
+
+  .sidebar .sidebar-content {
+    padding: 20px !important;
+  }
+
+  .sidebar .btn-action {
+    justify-content: flex-start !important;
+  }
+
+  /* Prevent logo from wrapping and pushing the navbar open */
+  .logo-text {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+  }
+
+  .navbar-brand-click {
+    gap: 8px;
+  }
+
+  .logo-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* The protective backdrop that lets the user click off to close the sliding menu */
+  .sidebar-mobile-overlay {
+    position: fixed;
+    inset: 0;
+    top: 64px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1999;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* The actual workspace takes the full viewport on mobile since sidebar is off-canvas */
+  .app-layout {
+    width: 100vw;
+  }
+
+  .graph-workspace-container {
+    padding: 0; 
+  }
+
+  .app-layout > .workspace {
+    width: 100%;
+    margin-left: 0 !important;
   }
 }

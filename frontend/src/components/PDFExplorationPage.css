@@ -718,8 +718,132 @@
         grid-template-columns: 1fr;
     }
     
+    /* Allow tablet users to still use the chat, but maybe narrower */
     .ai-study-partner {
+        width: 300px;
+    }
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS (BUBBLE MODAL)
+   ========================================= */
+
+.mobile-chat-fab {
+    display: none;
+}
+
+.mobile-close-chat-btn {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* Hide the sidebar from flow, make it a floating popup bubble */
+    .ai-study-partner {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: calc(100% - 40px) !important;
+        height: 80vh;
+        z-index: 2000;
+        border-radius: 20px;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 100vw rgba(0,0,0,0.5); /* Fake backdrop */
+        /* Animation states */
+        transform: translateY(120%) scale(0.9);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1);
+    }
+
+    /* When toggled open */
+    .ai-study-partner.mobile-open {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Floating Action Button to open the popup */
+    .mobile-chat-fab {
+        display: flex;
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        color: white;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+        cursor: pointer;
+        z-index: 1500;
+        transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .mobile-chat-fab:active {
+        transform: scale(0.9);
+    }
+
+    .mobile-chat-fab.hidden {
+        opacity: 0;
+        transform: scale(0.5);
+        pointer-events: none;
+    }
+
+    /* The 'X' button inside the header on mobile to close it */
+    .mobile-close-chat-btn {
+        display: flex;
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
+        border: none;
+        border-radius: 8px;
+        color: #9ca3af;
+        cursor: pointer;
+        z-index: 10;
+        transition: background 0.2s;
+    }
+
+    .mobile-close-chat-btn:hover {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    /* Hide the standard expander logic on mobile since it is a popup */
+    .partner-header .expand-btn {
         display: none;
+    }
+
+    /* Restructure the layout on mobile so text spans safely */
+    .explore-workspace {
+        flex-direction: column;
+    }
+
+    .main-content-area {
+        padding: 20px 16px 80px; /* Give room for the FAB to not overlap text */
+    }
+
+    .exploration-header h1 {
+        font-size: 28px;
+    }
+
+    .explore-nav {
+        padding: 0 16px;
+    }
+    
+    .nav-topic {
+        font-size: 11px;
+    }
+    
+    .empty-state {
+        padding: 40px 20px;
     }
 }
 

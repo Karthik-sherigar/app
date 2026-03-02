@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Network, Search, BrainCircuit, Shield, Chrome } from 'lucide-react';
@@ -8,7 +8,7 @@ import axios from 'axios';
 import './LoginPage.css';
 
 const GOOGLE_CLIENT_ID = "171238226547-gq0n9m4ro79nq5p0nor33r9d506o8b7s.apps.googleusercontent.com";
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api/auth`;
 
 const LoginContent = ({ onLogin }) => {
@@ -16,6 +16,19 @@ const LoginContent = ({ onLogin }) => {
     const [view, setView] = useState('login'); // 'login', 'register'
     const [isLoading, setIsLoading] = useState(false);
     const [otpSent, setOtpSent] = useState(false);
+    const [backendStatus, setBackendStatus] = useState("loading");
+
+    useEffect(() => {
+        const checkHealth = async () => {
+            try {
+                await axios.get(`${BACKEND_URL}/api/health`);
+                setBackendStatus("connected");
+            } catch (err) {
+                setBackendStatus("error");
+            }
+        };
+        checkHealth();
+    }, []);
     
     // Form States
     const [formData, setFormData] = useState({
@@ -127,6 +140,12 @@ const LoginContent = ({ onLogin }) => {
     return (
         <div className="auth-layout">
             
+            {/* System Status Indicator - Top Right */}
+            <div className={`login-status-wrap ${backendStatus}`} title={backendStatus}>
+                <span className="status-dot"></span>
+                <span className="status-text">{backendStatus === "connected" ? "Systems Online" : backendStatus === "error" ? "Connecting..." : "Checking Systems..."}</span>
+            </div>
+
             {/* LEFT PANEL - FORM */}
             <div className="auth-panel auth-left">
                 <div className="auth-form-container">

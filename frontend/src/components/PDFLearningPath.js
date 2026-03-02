@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { motion } from 'framer-motion';
 import { CheckCircle2, FileText } from 'lucide-react';
 import './PDFLearningPath.css';
@@ -15,6 +16,41 @@ const PDFLearningPath = ({ data, pdfFilename, onNodeClick }) => {
     }, [data]);
 
     const title = data?.title || "Learning Path";
+
+    useEffect(() => {
+        const handleExport = () => {
+            const pathContainer = document.querySelector('.pdf-path-container');
+            if (!pathContainer) return;
+            
+            // Add a temporary export class to style specifically for the download (e.g. remove scrollbars, fix heights)
+            pathContainer.classList.add('exporting-png');
+            
+            html2canvas(pathContainer, {
+                backgroundColor: '#0a0a0f', // Match the dark theme background
+                scale: 2, // High resolution
+                logging: false,
+                useCORS: true
+            }).then((canvas) => {
+                pathContainer.classList.remove('exporting-png');
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${pdfFilename.replace(/\.[^/.]+$/, "")}_learning_path.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            }).catch(err => {
+                console.error("Failed to export PDF graph to PNG:", err);
+                pathContainer.classList.remove('exporting-png');
+            });
+        };
+
+        window.addEventListener('export-graph-snapshot', handleExport);
+        return () => window.removeEventListener('export-graph-snapshot', handleExport);
+    }, [pdfFilename]);
 
     return (
         <div className="pdf-path-container">

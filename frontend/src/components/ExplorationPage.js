@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import { 
     ChevronLeft, 
     Layers, 
@@ -27,11 +28,13 @@ import {
     Dna,
     Database,
     Brain,
-    Sparkles
+    Sparkles,
+    Maximize2,
+    Minimize2
 } from 'lucide-react';
 import './ExplorationPage.css';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 
 const getCategoryConfig = (category) => {
     const configs = {
@@ -57,13 +60,29 @@ const SkeletonDeepDive = () => (
                 <div className="skeleton-rect" style={{ width: '300px', height: '60px', margin: '0 auto 20px' }}></div>
                 <div className="skeleton-line" style={{ width: '200px', margin: '0 auto' }}></div>
             </div>
-            <div className="deep-dive-grid">
-                {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="module-card skeleton-card">
-                        <div className="skeleton-line" style={{ width: '40%', marginBottom: '24px' }}></div>
-                        <div className="skeleton-rect" style={{ width: '100%', height: '150px' }}></div>
+            <div className="content-grid-v2">
+                <div className="primary-content-stack">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="module-card v2 skeleton-card" style={{ padding: '24px' }}>
+                            <div className="skeleton-line" style={{ width: '40%', marginBottom: '24px' }}></div>
+                            <div className="skeleton-rect" style={{ width: '100%', height: '120px' }}></div>
+                            <div className="skeleton-rect" style={{ width: '100%', height: '80px', marginTop: '16px' }}></div>
+                        </div>
+                    ))}
+                </div>
+                <div className="interaction-column">
+                    <div className="module-card ai-tutor-v4 skeleton-card" style={{ height: '300px' }}>
+                        <div className="skeleton-line" style={{ width: '50%', marginBottom: '24px' }}></div>
+                        <div className="skeleton-rect" style={{ width: '100%', height: '60px', marginBottom: '16px', borderRadius: '12px' }}></div>
+                        <div className="skeleton-rect" style={{ width: '80%', height: '60px', borderRadius: '12px', alignSelf: 'flex-end', marginLeft: 'auto' }}></div>
                     </div>
-                ))}
+                     <div className="module-card challenge-v4 skeleton-card" style={{ height: '250px' }}>
+                        <div className="skeleton-line" style={{ width: '40%', marginBottom: '24px' }}></div>
+                        <div className="skeleton-line" style={{ width: '100%', marginBottom: '16px' }}></div>
+                        <div className="skeleton-rect" style={{ width: '100%', height: '40px', marginBottom: '12px', borderRadius: '8px' }}></div>
+                        <div className="skeleton-rect" style={{ width: '100%', height: '40px', borderRadius: '8px' }}></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -159,6 +178,7 @@ const ExplorationPage = () => {
     const [selectionText, setSelectionText] = useState('');
     const [selectionPos, setSelectionPos] = useState({ x: 0, y: 0 });
     const [showAskTooltip, setShowAskTooltip] = useState(false);
+    const [isAiMaximized, setIsAiMaximized] = useState(false);
     const chatEndRef = useRef(null);
     const chatInputRef = useRef(null);
 
@@ -230,7 +250,7 @@ const ExplorationPage = () => {
     };
 
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, [chatHistory, isAsking]);
 
     const handleTextSelection = (e) => {
@@ -502,14 +522,28 @@ const ExplorationPage = () => {
                     </div>
 
                     <div className="interaction-column">
-                        <section className="module-card ai-tutor-v4" id="ai-expert-chat">
-                            <h2 className="module-title-dynamic"><Bot size={18} /> AI EXPERT</h2>
+                        <section className={`module-card ai-tutor-v4 ${isAiMaximized ? 'maximized' : ''}`} id="ai-expert-chat">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h2 className="module-title-dynamic"><Bot size={18} /> AI EXPERT</h2>
+                                <button
+                                    onClick={() => setIsAiMaximized(!isAiMaximized)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                >
+                                    {isAiMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                                </button>
+                            </div>
                             <div className="chat-v4">
                                 <div className="messages-v4">
                                     {chatHistory.length === 0 && <p className="chat-welcome-v4">Need clarification on the {data.category} logic? Ask away!</p>}
                                     {chatHistory.map((m, i) => (
                                         <div key={i} className={`bubble-v4 ${m.role}`}>
-                                            {m.content}
+                                            {m.role === 'ai' ? (
+                                                <div className="ai-markdown-content">
+                                                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                                                </div>
+                                            ) : (
+                                                m.content
+                                            )}
                                         </div>
                                     ))}
                                     <div ref={chatEndRef} />

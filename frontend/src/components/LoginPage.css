@@ -10,7 +10,7 @@
     display: flex;
     font-family: 'Inter', 'Manrope', sans-serif;
     color: #e5e7eb;
-    background-color: #0b1220; /* Very dark blue matching EyePhish */
+    background-color: #0b1220;
     overflow: hidden;
 }
 
@@ -486,5 +486,71 @@
     .auth-left {
         border-right: none;
         padding: 40px 20px;
+    }
+}
+
+/* System Status Indicator (Top Right) */
+.login-status-wrap {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    background: rgba(17, 24, 39, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+    font-weight: 500;
+    color: #9ca3af;
+    transition: all 0.3s ease;
+}
+
+.login-status-wrap .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.login-status-wrap.connected .status-dot {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.login-status-wrap.connected .status-text {
+    color: #10b981;
+}
+
+.login-status-wrap.error .status-dot {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.login-status-wrap.error .status-text {
+    color: #ef4444;
+}
+
+.login-status-wrap.loading .status-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@media (max-width: 768px) {
+    .login-status-wrap {
+        top: 16px;
+        right: 16px;
+        padding: 6px 12px;
+        font-size: 11px;
     }
 }

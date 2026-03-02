@@ -44,11 +44,10 @@ const SkeletonNode = ({ x, y, icon, lines, delay }) => {
             className="skeleton-node"
             style={{ 
                 left: x, 
-                top: y,
-                transform: 'translate(-50%, -50%)' // Restored to full scale
+                top: y
             }}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.8, x: "-50%", y: "-50%" }}
+            animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
             transition={{ duration: 0.6, delay: delay, ease: "easeOut" }}
         >
             <div className="skeleton-node-shimmer" />

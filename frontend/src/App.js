@@ -23,6 +23,7 @@ import BottomInputBar from "./components/BottomInputBar";
 import HistoryDialog from "./components/HistoryDialog";
 import "./components/HistoryDialog.css";
 import { Toaster, toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { MessageSquare, X } from "lucide-react";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 import SkeletonLoader from "./components/SkeletonLoader";
@@ -40,7 +41,7 @@ import LoginPage from "./components/LoginPage";
 import HomePage from "./components/HomePage";
 import QueryLanding from "./components/QueryLanding";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
 
 function App() {
@@ -50,12 +51,33 @@ function App() {
     return localStorage.getItem("authenticated") === "true" || false;
   });
   
-  // Neutral default state so the user lands on the Home Page first
-  const [mode, setMode] = useState(null);
+  // Extract initial state from URL to fundamentally prevent UI page flashing (Home Page -> Loader)
+  const getInitialMode = () => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('restoreMode')) return searchParams.get('restoreMode');
+    if (searchParams.get('mode')) return searchParams.get('mode');
+    if (location.pathname === '/query') return 'query';
+    if (location.pathname === '/pdf') return 'pdf';
+    if (location.pathname === '/programming') return 'programming';
+    
+    // Check old style parameter mapping
+    const qp = new URLSearchParams(window.location.search);
+    if(qp.get("mode")) return qp.get("mode");
+    return null;
+  };
+
+  const getInitialLoading = () => {
+    const searchParams = new URLSearchParams(location.search);
+    return !!(searchParams.get('restoreMode') && searchParams.get('historyId'));
+  };
+
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [mode, setMode] = useState(getInitialMode);
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
   const [selectedNode, setSelectedNode] = useState(null);
   const [showNodePanel, setShowNodePanel] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(getInitialLoading);
+  const [isRestoringFromDb, setIsRestoringFromDb] = useState(getInitialLoading);
   const [backendStatus, setBackendStatus] = useState("loading");
   const [history, setHistory] = useState([]);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -99,9 +121,6 @@ function App() {
     const initMode = searchParams.get('mode');
 
     if (restoreMode && initHistoryId) {
-      // Remove query parameters from URL visually without unmounting
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
       const loadHistoryFromUrl = async () => {
         setLoading(true);
         try {
@@ -110,6 +129,8 @@ function App() {
           const dataToRestore = historyItem.response_data;
 
           if (dataToRestore) {
+            isRestoringRef.current = true; // Lock out the canvas wiper!
+
             const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
             
             // Bypass prevent-clear logic by setting mode directly first
@@ -121,14 +142,20 @@ function App() {
             setExplorationStack(dataToRestore.explorationStack || []);
             setCurrentHistoryId(historyItem.id);
             toast.success("Expedition restored from URL.");
+
+            setTimeout(() => {
+                isRestoringRef.current = false;
+            }, 150);
           }
         } catch (e) {
           console.error("Failed to restore history from URL:", e);
           // If the history is gone, at least default to the requested mode
           setMode(restoreMode);
           prevModeRef.current = restoreMode;
+          setIsRestoringFromDb(false);
         } finally {
           setLoading(false);
+          setIsRestoringFromDb(false);
         }
       };
       // Short timeout to guarantee mode swap doesn't clear our data asynchronously
@@ -139,7 +166,23 @@ function App() {
       setMode(initMode);
       prevModeRef.current = initMode;
     }
-  }, [location.search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount!
+
+  // Natively sync the active database session into the URL so that browser refreshes perfectly restore the user's workspace
+  useEffect(() => {
+    if (currentHistoryId && mode && mode !== 'null') {
+      const targetUrl = `/${mode}?restoreMode=${mode}&historyId=${currentHistoryId}`;
+      if (window.location.pathname + window.location.search !== targetUrl) {
+        window.history.replaceState(null, '', targetUrl);
+      }
+    } else if (!currentHistoryId && mode) {
+      // Clear history tracking if we start a fresh session but keep mode
+      if (window.location.search.includes('historyId')) {
+         window.history.replaceState(null, '', `/${mode}`);
+      }
+    }
+  }, [currentHistoryId, mode]);
 
   const fetchFullHistory = async () => {
     if (historyLoading) return;
@@ -177,8 +220,10 @@ function App() {
     }
   };
 
-  // Sync mode state with route changes directly
+  // Sync mode state with route changes directly for Back button and Logo clicks!
   useEffect(() => {
+    if (isRestoringRef.current) return; // Prevent async route delays from interfering with manual history restoration
+
     if (location.pathname === '/' || location.pathname === '/login') {
       if (mode !== null) setMode(null);
     } else if (location.pathname === '/query') {
@@ -188,15 +233,22 @@ function App() {
     } else if (location.pathname === '/programming') {
       if (mode !== 'programming') setMode('programming');
     }
-  }, [location.pathname]);
+  }, [location.pathname, mode]);
+
 
   // Mode Isolation: Secondary fallback reset
   // Track previous mode to prevent accidental clearing
   const prevModeRef = useRef(mode);
+  const isRestoringRef = useRef(false);
 
   useEffect(() => {
     // Only clear if the mode actually changed and we aren't loading new data for the current mode
     if (prevModeRef.current !== mode) {
+      if (isRestoringRef.current) {
+         console.log(`Bypassing canvas wipe during restoration to ${mode}.`);
+         prevModeRef.current = mode;
+         return;
+      }
       console.log(`Mode changing from ${prevModeRef.current} to ${mode}. Clearing workspace.`);
       setGraphData({ nodes: [], edges: [] });
       setHasNewResponse(false);
@@ -409,16 +461,28 @@ function App() {
 
   const restoreFromHistory = async (historyItem) => {
     try {
+      setIsRestoringFromDb(true);
       setLoading(true);
       // ALWAYS fetch fresh data from the server because the stack may have been updated
       const response = await axios.get(`${API}/history/${historyItem.id}`);
       let dataToRestore = response.data.response_data;
       setLoading(false);
+      setIsRestoringFromDb(false);
 
       if (dataToRestore) {
+        const targetMode = historyItem.mode || 'query';
+        // Block the canvas-wipe useEffect from running!
+        isRestoringRef.current = true;
+        
+        // Synchronously jump the route first
+        navigate(`/${targetMode}`); 
+        
+        // Immediately sync the underlying ref tracker so the wiping useEffect ignores this!
+        prevModeRef.current = targetMode;
+
         const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
         setGraphData(normalizedData);
-        setMode(historyItem.mode);
+        setMode(targetMode);
         setActiveQuery(historyItem.query);
 
         // NEW: Restore Stack and ID
@@ -428,11 +492,18 @@ function App() {
         if (!showChat) {
           setHasNewResponse(true);
         }
+
         toast.success("Expedition history restored.");
+        
+        // Unlock restoration bypass safely after routing settles
+        setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 150);
       }
     } catch (e) {
       console.error("Restoration failed:", e);
       setLoading(false);
+      setIsRestoringFromDb(false);
       toast.error("Failed to restore history.");
     }
   };
@@ -531,12 +602,16 @@ function App() {
         resetGraph={resetGraph}
         theme={theme}
         setTheme={setTheme}
+        onLogout={handleLogout}
+        onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
       <div className="app-layout">
         {mode !== null && (
             <Sidebar
               mode={mode}
+              isMobileOpen={isMobileSidebarOpen}
+              setMobileOpen={setIsMobileSidebarOpen}
               generateGraph={generateGraph}
               generateGraphFromPDF={generateGraphFromPDF}
               handleNewQuery={handleNewQuery}
@@ -649,7 +724,7 @@ function App() {
           ) : mode === 'pdf' ? (
             loading ? (
               <div className="workspace-centered-loader">
-                <PDFLoadingAnimation />
+                {isRestoringFromDb ? <Loader2 className="animate-spin" size={48} color="var(--accent-primary)" /> : <PDFLoadingAnimation />}
               </div>
             ) : (
               <PDFUploadLanding 
@@ -660,7 +735,6 @@ function App() {
           ) : loading ? (
             <div className="workspace-centered-loader">
               <GraphLoadingAnimation mode={mode} />
-              <p>Analyzing knowledge structure...</p>
             </div>
           ) : mode === 'query' ? (
              <QueryLanding />
@@ -669,6 +743,7 @@ function App() {
               setMode={handleModeChange} 
               history={history} 
               onLogout={handleLogout} 
+              onRestore={restoreFromHistory}
             />
           )}
 
