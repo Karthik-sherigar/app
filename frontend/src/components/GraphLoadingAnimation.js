@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Network, Database, Brain, Cpu, Zap, Activity } from 'lucide-react';
+import { Network, Database, Brain, Cpu, Zap, Activity, Code, Terminal, Brackets, Layers, Workflow } from 'lucide-react';
 import './GraphLoadingAnimation.css';
 
 const VERBS = [
@@ -31,6 +31,7 @@ const PROGRAMMING_VERBS = [
 ];
 
 const ICONS = [Network, Database, Brain, Cpu, Zap, Activity];
+const PROGRAMMING_ICONS = [Code, Terminal, Brackets, Cpu, Layers, Workflow];
 
 // Binary Tree Layout: 1 Root -> 2 Children
 const TREE_NODES = [
@@ -72,47 +73,70 @@ const SkeletonNode = ({ x, y, icon, lines, delay }) => {
     );
 };
 
-const SkeletonEdge = ({ sourceId, targetId, delay }) => {
-    const sourceNode = TREE_NODES.find(n => n.id === sourceId);
-    const targetNode = TREE_NODES.find(n => n.id === targetId);
-
-    if (!sourceNode || !targetNode) return null;
-
-    const x1 = sourceNode.x;
-    const y1 = sourceNode.y + 24; // Bottom of source
-    const x2 = targetNode.x;
-    const y2 = targetNode.y - 24; // Top of target
-
-    // Cubic bezier for sweeping organic curve
-    // Add a tiny jitter to x2 if x1 === x2 to ensure linearGradient (objectBoundingBox) doesn't collapse
-    const safeX2 = x1 === x2 ? x2 + 0.01 : x2;
-    const pathD = `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${safeX2} ${(y1 + y2) / 2}, ${safeX2} ${y2}`;
-
+const ProgrammingSkeleton = () => {
     return (
-        <g>
-            {/* Ghost Track */}
-            <motion.path
-                d={pathD}
-                className="skeleton-edge-base"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: delay }}
-            />
-            {/* Energy flow beam overlay */}
-            <motion.path
-                d={pathD}
-                className="skeleton-edge-flow"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: [0, 1, 1], opacity: [0, 1, 0] }}
-                transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    delay: delay,
-                    ease: "easeInOut",
-                    times: [0, 0.6, 1]
-                }}
-            />
-        </g>
+        <div className="programming-skeleton-container">
+            <div className="code-matrix-bg">
+                {[...Array(10)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        className="code-column"
+                        initial={{ y: -100, opacity: 0 }}
+                        animate={{ y: 500, opacity: [0, 0.5, 0] }}
+                        transition={{
+                            duration: 5 + Math.random() * 5,
+                            repeat: Infinity,
+                            delay: Math.random() * 5,
+                            ease: "linear"
+                        }}
+                    >
+                        {Math.random().toString(2).substring(2, 15)}
+                    </motion.div>
+                ))}
+            </div>
+            <div className="logic-flow-visual">
+                <motion.div
+                    className="main-processor"
+                    animate={{
+                        boxShadow: [
+                            "0 0 20px rgba(99, 102, 241, 0.2)",
+                            "0 0 40px rgba(99, 102, 241, 0.5)",
+                            "0 0 20px rgba(99, 102, 241, 0.2)"
+                        ]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                >
+                    <Cpu size={32} className="text-indigo-400" />
+                    <div className="processing-rings">
+                        <div className="ring" />
+                        <div className="ring" />
+                    </div>
+                </motion.div>
+
+                <div className="data-points">
+                    {[...Array(6)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            className="data-node"
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{
+                                scale: [0, 1, 0],
+                                opacity: [0, 1, 0],
+                                rotate: [0, 180, 360]
+                            }}
+                            transition={{
+                                duration: 3,
+                                repeat: Infinity,
+                                delay: i * 0.5,
+                                ease: "easeInOut"
+                            }}
+                        >
+                            {React.createElement(PROGRAMMING_ICONS[i % PROGRAMMING_ICONS.length], { size: 16 })}
+                        </motion.div>
+                    ))}
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -148,31 +172,35 @@ const GraphLoadingAnimation = ({ mode = 'query' }) => {
             <div className="tree-glow-bg" />
 
             <div className="skeleton-tree-wrapper">
-                {/* SVG Curves Layer */}
-                <svg className="skeleton-edge-container" viewBox="0 0 800 500">
-                    <defs>
-                        <linearGradient id="data-flow-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="rgba(99, 102, 241, 0)" />
-                            <stop offset="50%" stopColor="rgba(99, 102, 241, 1)" />
-                            <stop offset="100%" stopColor="rgba(139, 92, 246, 0.8)" />
-                        </linearGradient>
-                    </defs>
-                    {TREE_EDGES.map((edge, idx) => (
-                        <SkeletonEdge key={idx} sourceId={edge.source} targetId={edge.target} delay={edge.delay} />
-                    ))}
-                </svg>
+                {mode === 'programming' ? (
+                    <ProgrammingSkeleton />
+                ) : (
+                    <>
+                        <svg className="skeleton-edge-container" viewBox="0 0 800 500">
+                            <defs>
+                                <linearGradient id="data-flow-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="rgba(99, 102, 241, 0)" />
+                                    <stop offset="50%" stopColor="rgba(99, 102, 241, 1)" />
+                                    <stop offset="100%" stopColor="rgba(139, 92, 246, 0.8)" />
+                                </linearGradient>
+                            </defs>
+                            {TREE_EDGES.map((edge, idx) => (
+                                <SkeletonEdge key={idx} sourceId={edge.source} targetId={edge.target} delay={edge.delay} />
+                            ))}
+                        </svg>
 
-                {/* Glassmorphic Nodes Layer */}
-                {TREE_NODES.map((node, idx) => (
-                    <SkeletonNode
-                        key={node.id}
-                        x={node.x}
-                        y={node.y}
-                        icon={node.icon}
-                        lines={node.lines}
-                        delay={idx * 0.25}
-                    />
-                ))}
+                        {TREE_NODES.map((node, idx) => (
+                            <SkeletonNode
+                                key={node.id}
+                                x={node.x}
+                                y={node.y}
+                                icon={node.icon}
+                                lines={node.lines}
+                                delay={idx * 0.25}
+                            />
+                        ))}
+                    </>
+                )}
             </div>
 
             <div className="loading-status-overlay">
