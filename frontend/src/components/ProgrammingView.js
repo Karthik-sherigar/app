@@ -12,13 +12,12 @@ import {
     X,
     ChevronUp,
     ChevronDown,
-    Terminal as TerminalIcon,
-    AlertCircle,
-    Wand2,
-    Sparkles,
-    Layout,
     Eraser,
-    Download
+    Download,
+    Code,
+    Sparkles,
+    Wand2,
+    Terminal as TerminalIcon
 } from "lucide-react";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
@@ -134,10 +133,15 @@ export default function ProgrammingView({
         toast.info("Terminal Cleared");
     };
 
-    const handleDownloadGraph = () => {
-        if (graphData.nodes.length === 0) return;
-        toast.info("Preparing graph export...");
-        window.dispatchEvent(new Event('export-organic-graph'));
+    const downloadGraphData = () => {
+        if (!graphData.nodes || graphData.nodes.length === 0) {
+            toast.error("No graph data to export");
+            return;
+        }
+
+        const exportEvent = new CustomEvent('export-organic-graph');
+        window.dispatchEvent(exportEvent);
+        toast.info("Preparing graph image for download...");
     };
 
     const handleFileOpen = (event) => {
@@ -178,9 +182,9 @@ export default function ProgrammingView({
                             <div className="toolbar-right">
                                 <button
                                     className="toolbar-btn"
-                                    onClick={handleDownloadGraph}
+                                    onClick={downloadGraphData}
                                     disabled={graphData.nodes.length === 0}
-                                    title="Download Graph"
+                                    title="Download Graph Data (JSON)"
                                 >
                                     <Download size={16} />
                                 </button>
@@ -199,7 +203,6 @@ export default function ProgrammingView({
                                         onGenerateGraph(code, "programming");
                                         runCode(""); // Start execution with empty stdin
                                     }}
-                                    disabled={!code.trim() || loading}
                                 >
                                     <Play size={16} fill="currentColor" />
                                     Analyze & Run
@@ -500,14 +503,9 @@ export default function ProgrammingView({
                         <div className="modal-content">
                             <div className="modal-header">
                                 <h3>Logic Flow Visualization</h3>
-                                <div className="modal-actions">
-                                    <button className="toolbar-btn" onClick={handleDownloadGraph} title="Download Graph">
-                                        <Download size={20} />
-                                    </button>
-                                    <button className="close-modal" onClick={() => setIsFullscreen(false)}>
-                                        <X size={24} />
-                                    </button>
-                                </div>
+                                <button className="close-modal" onClick={() => setIsFullscreen(false)}>
+                                    <X size={24} />
+                                </button>
                             </div>
                             <div className="modal-body">
                                 <div className="fullscreen-graph-container">
@@ -525,6 +523,6 @@ export default function ProgrammingView({
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div >
+        </div>
     );
 }
