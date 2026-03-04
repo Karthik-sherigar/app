@@ -2301,6 +2301,16 @@ h4 {
   }
 }
 
+.toolbar-btn.animating svg {
+  animation: pulse 1.5s infinite;
+}
+
+.toolbar-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-primary);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
 .editor-main,
 .graph-viewer {
   flex: 1;
@@ -2371,6 +2381,83 @@ h4 {
   max-width: 800px;
   margin: 0 auto;
   opacity: 0.9;
+}
+
+.node-detail-focus {
+  padding: 16px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.node-type-tag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.node-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.node-description {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.btn-expand-logic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-expand-logic:hover {
+  background: #5558e3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.btn-expand-logic svg {
+  color: white;
+}
+
+.detail-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  margin: 20px 0;
+}
+
+.general-summary-header {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 12px;
 }
 
 /* Fullscreen Modal */
@@ -2649,12 +2736,34 @@ h4 {
   letter-spacing: 1px;
 }
 
-.close-terminal {
+.close-terminal,
+.terminal-action-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.terminal-action-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-primary);
+}
+
+.close-terminal:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .terminal-body {
@@ -2690,6 +2799,68 @@ h4 {
   color: var(--text-muted);
   opacity: 0.5;
   font-style: italic;
+}
+
+.terminal-input-wrapper {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.terminal-shell-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: transparent;
+}
+
+.terminal-prompt-char {
+  color: #4ade80;
+  /* Terminal green */
+  font-family: 'Fira Code', monospace;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.terminal-shell-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  outline: none;
+  padding: 0;
+}
+
+.terminal-shell-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.terminal-input-field {
+  background: transparent;
+  border: none;
+  color: var(--accent-primary);
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  width: 200px;
+  outline: none;
+  resize: none;
+  overflow-y: hidden;
+  padding: 4px 0;
+  line-height: 1.4;
+  min-height: 18px;
+  max-height: 80px;
+}
+
+.terminal-input-field::placeholder {
+  color: var(--text-muted);
+  opacity: 0.4;
 }
 
 .resize-handle-v {
@@ -2805,15 +2976,19 @@ h4 {
    ========================================= */
 
 @media (max-width: 768px) {
+
   /* 
      Hide the normal sidebar layout structure on mobile.
      Convert to a completely detached off-canvas slider.
   */
   .sidebar {
     position: fixed !important;
-    top: 64px !important; /* Below Navbar */
-    left: -100% !important; /* Hidden off-screen */
-    width: 280px !important; /* Force width */
+    top: 64px !important;
+    /* Below Navbar */
+    left: -100% !important;
+    /* Hidden off-screen */
+    width: 280px !important;
+    /* Force width */
     height: calc(100vh - 64px) !important;
     z-index: 2000 !important;
     transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1) !important;
@@ -2837,7 +3012,8 @@ h4 {
 
   /* Force solid opaque background to block out graph elements underneath */
   .sidebar {
-    background: #0f172a !important; /* Tailwind Slate 900 */
+    background: #0f172a !important;
+    /* Tailwind Slate 900 */
   }
 
   /* Reset alignment and padding from the desktop autohide states */
@@ -2886,10 +3062,10 @@ h4 {
   }
 
   .graph-workspace-container {
-    padding: 0; 
+    padding: 0;
   }
 
-  .app-layout > .workspace {
+  .app-layout>.workspace {
     width: 100%;
     margin-left: 0 !important;
   }
