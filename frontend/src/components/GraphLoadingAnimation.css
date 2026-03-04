@@ -163,7 +163,8 @@
 /* Bottom Loading Text */
 .loading-status-overlay {
     position: absolute;
-    bottom: 40px; /* Nudged lower to maximize vertical margin under the graph */
+    bottom: 40px;
+    /* Nudged lower to maximize vertical margin under the graph */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -242,4 +243,139 @@
     font-size: 12px;
     color: rgba(255, 255, 255, 0.4);
     letter-spacing: 2px;
+}
+
+/* Programming Mode Skeleton Styles */
+.programming-skeleton-container {
+    position: relative;
+    width: 600px;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.code-matrix-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: space-around;
+    opacity: 0.15;
+    pointer-events: none;
+}
+
+.code-column {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+    color: #6366f1;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    user-select: none;
+}
+
+.logic-flow-visual {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.main-processor {
+    width: 100px;
+    height: 100px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 2px solid #6366f1;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+}
+
+.processing-rings {
+    position: absolute;
+    inset: -20px;
+    pointer-events: none;
+}
+
+.ring {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 50%;
+    animation: ring-spin 4s linear infinite;
+}
+
+.ring:nth-child(2) {
+    inset: -10px;
+    border-color: rgba(99, 102, 241, 0.15);
+    animation-direction: reverse;
+    animation-duration: 6s;
+}
+
+@keyframes ring-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.data-points {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    pointer-events: none;
+}
+
+.data-node {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #818cf8;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
+
+.data-node:nth-child(1) {
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.data-node:nth-child(2) {
+    top: 30%;
+    right: 10%;
+}
+
+.data-node:nth-child(3) {
+    bottom: 30%;
+    right: 10%;
+}
+
+.data-node:nth-child(4) {
+    bottom: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.data-node:nth-child(5) {
+    bottom: 30%;
+    left: 10%;
+}
+
+.data-node:nth-child(6) {
+    top: 30%;
+    left: 10%;
 }
