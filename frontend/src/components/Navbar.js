@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Sun, Moon, LogOut, Camera, User, Menu } from "lucide-react";
+import { Brain, Sun, Moon, LogOut, Camera, User, Menu, ArrowLeft, Home } from "lucide-react";
 import axios from "axios";
 import { toast } from 'react-toastify';
 import "./Navbar.css"; // Ensure CSS is tracked
@@ -11,7 +11,7 @@ const API = `${BACKEND_URL}/api`;
 function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onToggleSidebar }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
-  
+
   const userName = localStorage.getItem('userName') || 'Explorer';
   const userEmail = localStorage.getItem('userEmail') || '';
   const [profilePic, setProfilePic] = useState(localStorage.getItem('profilePic') || null);
@@ -23,7 +23,7 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { 
+      if (file.size > 2 * 1024 * 1024) {
         toast.error("Image must be smaller than 2MB");
         return;
       }
@@ -47,18 +47,29 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
     <nav className="navbar" data-testid="navbar">
       <div className="navbar-left">
         {mode && mode !== 'null' && (
-          <button 
-            className="icon-btn mobile-hamburger-btn" 
+          <button
+            className="back-btn-circular"
+            onClick={() => setMode(null)}
+            title="Back to Dashboard"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
+
+        {mode && mode !== 'null' && (
+          <button
+            className="icon-btn mobile-hamburger-btn"
             onClick={onToggleSidebar}
             title="Toggle Menu"
           >
             <Menu size={24} />
           </button>
         )}
-        <div 
+
+        <div
           className="navbar-brand-click"
-          onClick={() => setMode(null)} 
-          style={{cursor: 'pointer', display: 'flex', alignItems: 'center'}}
+          onClick={() => setMode(null)}
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           title="Return to Dashboard"
         >
           <Brain className="logo-icon" size={32} />
@@ -71,18 +82,11 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
           <span className="status-dot"></span>
         </div>
 
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          title="Toggle Theme"
-        >
-          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
 
         {/* Profile Dropdown Component */}
         <div className="navbar-profile-container">
-          <div 
-            className="navbar-avatar" 
+          <div
+            className="navbar-avatar"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
           >
             {profilePic ? (
@@ -96,7 +100,7 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
 
           <AnimatePresence>
             {showProfileMenu && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -113,7 +117,7 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
                     <div className="profile-menu-overlay"><Camera size={14} /></div>
                   </div>
                   <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageUpload} />
-                  
+
                   <div className="profile-menu-info">
                     <h4>{userName}</h4>
                     <p>{userEmail}</p>
