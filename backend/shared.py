@@ -48,8 +48,9 @@ class QueryRequest(BaseModel):
 class ExpandNodeRequest(BaseModel):
     node_id: str
     node_label: str
-    mode: str = "query" # Added mode
+    mode: str = "query"
     current_graph: GraphData
+    context_code: Optional[str] = None # For programming mode drill-down
 
 class ExplainRequest(BaseModel):
     topic: str
@@ -58,6 +59,7 @@ class ExplainRequest(BaseModel):
 class CodeExecutionRequest(BaseModel):
     code: str
     language: str
+    stdin: Optional[str] = ""
 
 class AskNodeRequest(BaseModel):
     nodeLabel: str
