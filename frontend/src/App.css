@@ -225,6 +225,160 @@ h4 {
   overflow: hidden;
 }
 
+/* SIDEBAR */
+.sidebar {
+  width: 260px;
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+.sidebar.collapsed {
+  width: 68px;
+}
+
+.sidebar.query-mode-autohide,
+.sidebar.pdf-mode-autohide,
+.sidebar.programming-mode-autohide {
+  width: 68px;
+  opacity: 0.8;
+  position: relative;
+  z-index: 1000;
+}
+
+.sidebar.query-mode-autohide:hover,
+.sidebar.pdf-mode-autohide:hover,
+.sidebar.programming-mode-autohide:hover {
+  width: 320px;
+  opacity: 1;
+  box-shadow: 10px 0 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Hide content labels when collapsed in autohide mode */
+.sidebar.query-mode-autohide:not(:hover) .section-title span,
+.sidebar.query-mode-autohide:not(:hover) .btn-action span,
+.sidebar.query-mode-autohide:not(:hover) .history-preview-classic,
+.sidebar.query-mode-autohide:not(:hover) .history-meta,
+.sidebar.query-mode-autohide:not(:hover) .input-container,
+.sidebar.pdf-mode-autohide:not(:hover) .section-title span,
+.sidebar.pdf-mode-autohide:not(:hover) .btn-action span,
+.sidebar.pdf-mode-autohide:not(:hover) .history-preview-classic,
+.sidebar.pdf-mode-autohide:not(:hover) .history-meta,
+.sidebar.pdf-mode-autohide:not(:hover) .input-container,
+.sidebar.programming-mode-autohide:not(:hover) .section-title span,
+.sidebar.programming-mode-autohide:not(:hover) .btn-action span,
+.sidebar.programming-mode-autohide:not(:hover) .history-preview-classic,
+.sidebar.programming-mode-autohide:not(:hover) .history-meta,
+.sidebar.programming-mode-autohide:not(:hover) .input-container {
+  display: none;
+}
+
+.sidebar.query-mode-autohide:not(:hover) .sidebar-section,
+.sidebar.pdf-mode-autohide:not(:hover) .sidebar-section,
+.sidebar.programming-mode-autohide:not(:hover) .sidebar-section {
+  align-items: center;
+}
+
+.sidebar.query-mode-autohide:not(:hover) .sidebar-content,
+.sidebar.pdf-mode-autohide:not(:hover) .sidebar-content,
+.sidebar.programming-mode-autohide:not(:hover) .sidebar-content {
+  padding: 16px 8px;
+}
+
+.sidebar-toggle-container {
+  padding: 16px;
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar.collapsed .sidebar-toggle-container {
+  justify-content: center;
+}
+
+.sidebar-collapse-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sidebar-collapse-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  transform: scale(1.05);
+}
+
+.sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar.collapsed .sidebar-content {
+  padding: 16px 8px;
+  align-items: center;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .input-container {
   display: flex;
@@ -301,6 +455,12 @@ h4 {
   background: rgba(239, 68, 68, 0.1);
 }
 
+.code-editor-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .button-group {
   display: flex;
   flex-direction: column;
@@ -355,6 +515,17 @@ h4 {
   gap: 8px;
 }
 
+.btn-action {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  justify-content: flex-start;
+}
+
+.btn-action:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+}
 
 /* Cleaned up old history styles */
 .history-section {
@@ -1720,6 +1891,9 @@ h4 {
 
 /* RESPONSIVE */
 @media (max-width: 1024px) {
+  .sidebar {
+    width: 240px;
+  }
 
   .node-details-panel {
     width: 320px;
@@ -1731,6 +1905,18 @@ h4 {
     display: none;
   }
 
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 64px;
+    height: calc(100vh - 64px);
+    z-index: 900;
+    transition: left 0.3s;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
 }
 
 /* FLOATING CHAT EXPERIENCE */
@@ -2319,12 +2505,6 @@ h4 {
   background-clip: text;
 }
 
-.modal-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
 .close-modal {
   background: rgba(255, 255, 255, 0.05);
   border: none;
@@ -2355,6 +2535,26 @@ h4 {
 }
 
 
+/* Sidebar Mode Adjustments */
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mini-editor {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: #1e1e1e;
+}
 
 .button-row {
   display: flex;
@@ -2777,6 +2977,58 @@ h4 {
 
 @media (max-width: 768px) {
 
+  /* 
+     Hide the normal sidebar layout structure on mobile.
+     Convert to a completely detached off-canvas slider.
+  */
+  .sidebar {
+    position: fixed !important;
+    top: 64px !important;
+    /* Below Navbar */
+    left: -100% !important;
+    /* Hidden off-screen */
+    width: 280px !important;
+    /* Force width */
+    height: calc(100vh - 64px) !important;
+    z-index: 2000 !important;
+    transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1) !important;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8) !important;
+    opacity: 1 !important;
+  }
+
+  /* When the 'mobile-open' state is true, slide it in */
+  .sidebar.mobile-open {
+    left: 0 !important;
+  }
+
+  /* Restore text display on mobile slider even if 'autohide' is somehow attached */
+  .sidebar .section-title span,
+  .sidebar .btn-action span,
+  .sidebar .history-preview-classic,
+  .sidebar .history-meta,
+  .sidebar .input-container {
+    display: flex !important;
+  }
+
+  /* Force solid opaque background to block out graph elements underneath */
+  .sidebar {
+    background: #0f172a !important;
+    /* Tailwind Slate 900 */
+  }
+
+  /* Reset alignment and padding from the desktop autohide states */
+  .sidebar .sidebar-section {
+    align-items: stretch !important;
+  }
+
+  .sidebar .sidebar-content {
+    padding: 20px !important;
+  }
+
+  .sidebar .btn-action {
+    justify-content: flex-start !important;
+  }
+
   /* Prevent logo from wrapping and pushing the navbar open */
   .logo-text {
     font-size: 13px !important;
@@ -2793,6 +3045,16 @@ h4 {
     height: 24px;
   }
 
+  /* The protective backdrop that lets the user click off to close the sliding menu */
+  .sidebar-mobile-overlay {
+    position: fixed;
+    inset: 0;
+    top: 64px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1999;
+    animation: fadeIn 0.2s ease-out;
+  }
 
   /* The actual workspace takes the full viewport on mobile since sidebar is off-canvas */
   .app-layout {
