@@ -11,6 +11,7 @@ loader.config({
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
 import GraphCanvas from "./components/GraphCanvas";
 import OrganicTreeGraph from "./components/OrganicTreeGraph";
 import VisualJourney from "./components/VisualJourney/VisualJourney";
@@ -70,6 +71,7 @@ function App() {
     return !!(searchParams.get('restoreMode') && searchParams.get('historyId'));
   };
 
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [mode, setMode] = useState(getInitialMode);
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] });
   const [selectedNode, setSelectedNode] = useState(null);
@@ -84,6 +86,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("overview");
   const [externalSelectedNode, setExternalSelectedNode] = useState(null);
   const [activeQuery, setActiveQuery] = useState("");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [programmingCode, setProgrammingCode] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [hasNewResponse, setHasNewResponse] = useState(false);
@@ -601,9 +604,37 @@ function App() {
         theme={theme}
         setTheme={setTheme}
         onLogout={handleLogout}
+        onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
       <div className="app-layout">
+        {mode !== null && mode !== 'programming' && (
+          <Sidebar
+            mode={mode}
+            isMobileOpen={isMobileSidebarOpen}
+            setMobileOpen={setIsMobileSidebarOpen}
+            generateGraph={generateGraph}
+            generateGraphFromPDF={generateGraphFromPDF}
+            handleNewQuery={handleNewQuery}
+            handleTemporaryQuery={handleTemporaryQuery}
+            deleteAllHistory={deleteAllHistory}
+            explainConfusion={() => {
+              if (selectedNode) {
+                explainConfusion(selectedNode.label);
+              } else {
+                toast.error("Identify a station first.");
+              }
+            }}
+            resetGraph={resetGraph}
+            history={history}
+            restoreFromHistory={restoreFromHistory}
+            deleteHistoryItem={deleteHistoryItem}
+            onShowFullHistory={fetchFullHistory}
+            loading={loading}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
+        )}
 
         <main
           className={`workspace ${loading ? 'no-scroll' : ''}`}
