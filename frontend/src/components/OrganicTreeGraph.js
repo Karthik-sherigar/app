@@ -5,7 +5,7 @@ import TreeNodeCard from './TreeNodeCard';
 import GraphLoadingAnimation from './GraphLoadingAnimation';
 import './OrganicTreeGraph.css';
 
-const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode, mode, loading, activeQuery }) => {
+const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, onExpandNode, selectedNode, mode, loading, activeQuery }) => {
     const [treeLayout, setTreeLayout] = useState(null);
     const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
     const containerRef = useRef(null);
@@ -213,7 +213,7 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
             } else {
                 // Parent Node: Center it over its children
                 node.children.forEach(child => layoutPass(child, depth + 1));
-                
+
                 const firstX = node.children[0].x;
                 const lastX = node.children[node.children.length - 1].x;
                 node.x = (firstX + lastX) / 2;
@@ -298,9 +298,24 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
             if (tree) {
                 const layout = calculateTreeLayout(tree, dimensions.width);
                 setTreeLayout(layout);
+
+                // Auto-fit Logic: Zoom out if the graph is too large for the container
+                if (layout.length > 0) {
+                    const maxX = Math.max(...layout.map(n => n.x)) + 300;
+                    const minX = Math.min(...layout.map(n => n.x)) - 100;
+                    const treeWidth = maxX - minX;
+                    const containerWidth = dimensions.width || window.innerWidth;
+
+                    if (treeWidth > containerWidth) {
+                        const requiredZoom = Math.max(0.3, containerWidth / treeWidth);
+                        setZoomLevel(requiredZoom);
+                    } else {
+                        setZoomLevel(1);
+                    }
+                }
             }
         }
-    }, [graphData, dimensions]);
+    }, [graphData, dimensions.width]);
 
     // Update dimensions on resize
     useEffect(() => {
@@ -340,10 +355,18 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
         return connections;
     };
 
-    if (loading) {
+    const connections = getConnections();
+    const maxY = Math.max(...(treeLayout?.map(n => n.y) || [800])) + 400;
+    const maxX = Math.max(...(treeLayout?.map(n => n.x) || [1200])) + 200;
+    const minX = Math.min(...(treeLayout?.map(n => n.x) || [0])) - 200;
+
+    // Ensure the SVG canvas is wide enough to contain all nodes without clipping
+    const computedWidth = Math.max(dimensions.width, maxX);
+
+    if (loading && (!treeLayout || treeLayout.length === 0)) {
         return (
             <div className="organic-tree-container" ref={containerRef}>
-                <GraphLoadingAnimation mode="query" />
+                <GraphLoadingAnimation mode={mode || "query"} />
             </div>
         );
     }
@@ -359,16 +382,22 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
         );
     }
 
-    const connections = getConnections();
-    const maxY = Math.max(...treeLayout.map(n => n.y)) + 400;
-    const maxX = Math.max(...treeLayout.map(n => n.x)) + 200;
-    const minX = Math.min(...treeLayout.map(n => n.x)) - 200;
-
-    // Ensure the SVG canvas is wide enough to contain all nodes without clipping
-    const computedWidth = Math.max(dimensions.width, maxX);
-
     return (
         <div className="organic-tree-container" ref={containerRef}>
+
+            {/* Loading Overlay */}
+            <AnimatePresence>
+                {loading && (
+                    <motion.div
+                        className="organic-tree-loading-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <GraphLoadingAnimation mode={mode || "query"} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Zoom Controls */}
             <AnimatePresence>
@@ -520,8 +549,12 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, selectedNode,
                                         <TreeNodeCard
                                             node={node}
                                             level={node.level}
+                                            selected={selectedNode && selectedNode.id === node.id}
                                             onClick={(clickedNode) => {
-                                                if (onExploreNode) {
+                                                if (onNodeClick && mode === 'programming') {
+                                                    // For programming, we mainly want to select and show summary
+                                                    onNodeClick(clickedNode);
+                                                } else if (onExploreNode) {
                                                     // Exploration mode: only fetch explanation, don't trigger graph regeneration
                                                     onExploreNode(clickedNode);
                                                 } else if (onNodeClick) {
