@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { loader } from "@monaco-editor/react";
 import {
     Play,
     PlayCircle,
@@ -13,11 +13,15 @@ import {
     ChevronUp,
     ChevronDown,
     Terminal as TerminalIcon,
-    AlertCircle
+    AlertCircle,
+    Wand2,
+    Sparkles,
+    Layout,
+    Eraser
 } from "lucide-react";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import GraphCanvas from "./GraphCanvas";
+import OrganicTreeGraph from "./OrganicTreeGraph";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -28,6 +32,7 @@ export default function ProgrammingView({
     graphData,
     loading,
     onNodeClick,
+    onExpandNode,
     selectedNode,
     externalSelectedNode
 }) {
@@ -37,31 +42,95 @@ export default function ProgrammingView({
     const [executionResult, setExecutionResult] = useState(null);
     const [isExecuting, setIsExecuting] = useState(false);
     const [showTerminal, setShowTerminal] = useState(false);
+    const [isFormatting, setIsFormatting] = useState(false);
+    const [terminalInput, setTerminalInput] = useState("");
+    const [accumulatedStdin, setAccumulatedStdin] = useState("");
+    const terminalBodyRef = useRef(null);
     const fileInputRef = useRef(null);
+    const editorRef = useRef(null);
 
-    const runCode = async () => {
+    const runCode = async (overrideStdin = null) => {
         if (!code.trim()) return;
         setIsExecuting(true);
         setShowTerminal(true);
-        setExecutionResult(null);
+
+        // Ensure overrideStdin is either a string or specifically null
+        const stdinToUse = (typeof overrideStdin === 'string') ? overrideStdin : null;
+        const newStdin = stdinToUse !== null ? stdinToUse : (accumulatedStdin + (terminalInput ? terminalInput + "\n" : ""));
+
         try {
             const apiBase = process.env.REACT_APP_BACKEND_URL || '';
             const response = await axios.post(`${apiBase}/api/execute-code`, {
                 code,
-                language
+                language,
+                stdin: newStdin
             });
-            setExecutionResult(response.data);
-            if (response.data.success) {
-                toast.success("Execution complete");
-            } else {
-                toast.error("Execution failed");
+
+            let data = response.data;
+
+            // MASKING LOGIC: If the program crashed with NoSuchElementException (EOF), 
+            // it's likely just waiting for more input. We mask the error so the user 
+            // doesn't see a "crash" mid-session.
+            if (!data.success && data.error && (
+                data.error.includes("NoSuchElementException") ||
+                data.error.includes("EOFError") ||
+                data.output.trim().endsWith(":") // Common prompt pattern
+            )) {
+                data.success = true; // Treat as "waiting" rather than "failed"
+                data.error = ""; // Hide the stack trace
+            }
+
+            setExecutionResult(data);
+            setAccumulatedStdin(newStdin);
+            setTerminalInput("");
+
+            if (data.success && !data.error && overrideStdin !== "") {
+                if (!data.output.trim().endsWith(":")) {
+                    toast.success("Execution complete");
+                }
             }
         } catch (e) {
             toast.error("Failed to run code");
             setExecutionResult({ output: "", error: e.message, success: false });
         } finally {
             setIsExecuting(false);
+            setTimeout(() => {
+                if (terminalBodyRef.current) {
+                    terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
+                }
+                const input = document.querySelector('.terminal-shell-input');
+                if (input) input.focus();
+            }, 50);
         }
+    };
+
+    const formatCode = async () => {
+        if (!code.trim() || isFormatting) return;
+        setIsFormatting(true);
+        try {
+            const apiBase = process.env.REACT_APP_BACKEND_URL || '';
+            const response = await axios.post(`${apiBase}/api/format-code`, {
+                code,
+                language
+            });
+            if (response.data.formatted_code) {
+                setCode(response.data.formatted_code);
+                toast.success("AI Refactoring Complete", {
+                    description: "Code has been formatted and optimized."
+                });
+            }
+        } catch (e) {
+            toast.error("AI Formatting Failed");
+        } finally {
+            setIsFormatting(false);
+        }
+    };
+
+    const clearTerminal = () => {
+        setExecutionResult(null);
+        setAccumulatedStdin("");
+        setTerminalInput("");
+        toast.info("Terminal Cleared");
     };
 
     const handleFileOpen = (event) => {
@@ -81,6 +150,12 @@ export default function ProgrammingView({
             reader.readAsText(file);
         }
     };
+
+    // Reset terminal session if code or language changes
+    React.useEffect(() => {
+        setAccumulatedStdin("");
+        setExecutionResult(null);
+    }, [code, language]);
 
     return (
         <div className="programming-view-container">
@@ -104,25 +179,30 @@ export default function ProgrammingView({
                                 </button>
                                 <button
                                     className="btn-analyze"
-                                    onClick={() => onGenerateGraph(code, "programming")}
+                                    onClick={() => {
+                                        setAccumulatedStdin(""); // Reset buffer for fresh analysis
+                                        onGenerateGraph(code, "programming");
+                                        runCode(""); // Start execution with empty stdin
+                                    }}
                                     disabled={!code.trim() || loading}
                                 >
                                     <Play size={16} fill="currentColor" />
-                                    Analyze
+                                    Analyze & Run
                                 </button>
                             </div>
                         </div>
 
                         <div className="graph-viewer">
-                            {graphData.nodes.length > 0 ? (
+                            {(graphData.nodes.length > 0 || loading) ? (
                                 <PanelGroup direction="vertical">
                                     <Panel minSize={30}>
-                                        <GraphCanvas
+                                        <OrganicTreeGraph
                                             graphData={graphData}
                                             onNodeClick={onNodeClick}
+                                            onExpandNode={onExpandNode}
                                             selectedNode={selectedNode}
-                                            externalSelectedNode={externalSelectedNode}
                                             mode="programming"
+                                            loading={loading}
                                         />
                                     </Panel>
 
@@ -130,7 +210,7 @@ export default function ProgrammingView({
                                         <div className="handle-line-h" />
                                     </PanelResizeHandle>
 
-                                    <Panel defaultSize={30} minSize={15}>
+                                    <Panel defaultSize={35} minSize={15}>
                                         <div className="logic-summary-panel">
                                             <div className="panel-header" onClick={() => setShowExplanation(!showExplanation)}>
                                                 <div className="header-left">
@@ -139,7 +219,7 @@ export default function ProgrammingView({
                                                 </div>
                                                 {showExplanation ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
                                             </div>
-                                            <AnimatePresence>
+                                            <AnimatePresence mode="wait">
                                                 {showExplanation && (
                                                     <motion.div
                                                         className="panel-body"
@@ -147,9 +227,32 @@ export default function ProgrammingView({
                                                         animate={{ height: "auto", opacity: 1 }}
                                                         exit={{ height: 0, opacity: 0 }}
                                                     >
-                                                        <div className="summary-content">
-                                                            {graphData.answer}
-                                                        </div>
+                                                        {selectedNode ? (
+                                                            <div className="node-detail-focus">
+                                                                <div className="node-header">
+                                                                    <div className="node-type-tag">{selectedNode.type}</div>
+                                                                    <h4>{selectedNode.label}</h4>
+                                                                </div>
+                                                                <p className="node-description">{selectedNode.description}</p>
+                                                                <button
+                                                                    className="btn-expand-logic"
+                                                                    onClick={() => onExpandNode(selectedNode.id, selectedNode.label)}
+                                                                    disabled={loading}
+                                                                >
+                                                                    <Maximize2 size={14} />
+                                                                    Drill Down into Internal Logic
+                                                                </button>
+                                                                <div className="detail-separator" />
+                                                                <div className="general-summary-header">GENERAL ANALYSIS</div>
+                                                                <div className="summary-content">
+                                                                    {graphData.answer}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="summary-content">
+                                                                {graphData.answer || "Select a node to see detailed logic or run analysis to generate the summary."}
+                                                            </div>
+                                                        )}
                                                     </motion.div>
                                                 )}
                                             </AnimatePresence>
@@ -191,6 +294,24 @@ export default function ProgrammingView({
                                 </select>
                             </div>
                             <div className="toolbar-right">
+                                <button
+                                    className={`toolbar-btn ${isFormatting ? 'animating' : ''}`}
+                                    onClick={() => {
+                                        if (editorRef.current) {
+                                            // Focus first to ensure the action can run
+                                            editorRef.current.focus();
+                                            // Trigger the built-in format action which now uses our AI provider
+                                            editorRef.current.trigger('editor', 'editor.action.formatDocument');
+                                        } else {
+                                            formatCode();
+                                        }
+                                    }}
+                                    disabled={isFormatting || !code.trim()}
+                                    title="AI Format & Correct (All Languages)"
+                                >
+                                    {isFormatting ? <Sparkles size={16} className="animate-pulse text-accent" /> : <Wand2 size={16} />}
+                                    <span>Format</span>
+                                </button>
                                 <button className="toolbar-btn" onClick={() => fileInputRef.current.click()} title="Open File">
                                     <FolderOpen size={16} />
                                     <span>Open</span>
@@ -201,6 +322,13 @@ export default function ProgrammingView({
                                     style={{ display: "none" }}
                                     onChange={handleFileOpen}
                                 />
+                                <button
+                                    className={`toolbar-btn ${showTerminal ? 'active' : ''}`}
+                                    onClick={() => setShowTerminal(!showTerminal)}
+                                    title="Toggle Terminal"
+                                >
+                                    <TerminalIcon size={16} />
+                                </button>
                                 <button className="toolbar-btn text-error" onClick={() => setCode("")} title="Clear Code">
                                     <Trash2 size={16} />
                                 </button>
@@ -214,6 +342,42 @@ export default function ProgrammingView({
                                         language={language}
                                         theme="vs-dark"
                                         value={code}
+                                        onMount={(editor, monaco) => {
+                                            editorRef.current = editor;
+
+                                            // Register Formatting Provider for ALL languages
+                                            const languages = ['javascript', 'python', 'java', 'cpp', 'typescript', 'c', 'csharp'];
+                                            languages.forEach(lang => {
+                                                monaco.languages.registerDocumentFormattingEditProvider(lang, {
+                                                    provideDocumentFormattingEdits: async (model) => {
+                                                        const currentCode = model.getValue();
+                                                        console.log(`Formatting initiated for ${lang}...`);
+                                                        setIsFormatting(true); // Sync UI state
+                                                        try {
+                                                            const apiBase = process.env.REACT_APP_BACKEND_URL || '';
+                                                            const response = await axios.post(`${apiBase}/api/format-code`, {
+                                                                code: currentCode,
+                                                                language: lang
+                                                            });
+                                                            if (response.data.formatted_code) {
+                                                                console.log("Formatting successful");
+                                                                toast.success("AI Refactoring Complete");
+                                                                return [{
+                                                                    range: model.getFullModelRange(),
+                                                                    text: response.data.formatted_code
+                                                                }];
+                                                            }
+                                                        } catch (e) {
+                                                            console.error("Monaco Format Error:", e);
+                                                            toast.error("AI Formatting Failed");
+                                                        } finally {
+                                                            setIsFormatting(false); // Sync UI state
+                                                        }
+                                                        return [];
+                                                    }
+                                                });
+                                            });
+                                        }}
                                         onChange={(val) => setCode(val || "")}
                                         options={{
                                             minimap: { enabled: true },
@@ -238,23 +402,48 @@ export default function ProgrammingView({
                                                 <div className="terminal-header" onClick={() => setShowTerminal(false)}>
                                                     <div className="header-left">
                                                         <TerminalIcon size={14} className="text-accent" />
-                                                        <span>OUTPUT</span>
+                                                        <span>TERMINAL</span>
                                                     </div>
-                                                    <button className="close-terminal">
-                                                        <X size={14} />
-                                                    </button>
+                                                    <div className="header-right">
+                                                        <button
+                                                            className="terminal-action-btn"
+                                                            onClick={(e) => { e.stopPropagation(); clearTerminal(); }}
+                                                            title="Clear Console"
+                                                        >
+                                                            <Eraser size={14} />
+                                                        </button>
+                                                        <button className="close-terminal">
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="terminal-body">
+                                                <div className="terminal-body" ref={terminalBodyRef}>
                                                     {isExecuting ? (
                                                         <div className="terminal-loading">Running code...</div>
-                                                    ) : executionResult ? (
-                                                        <>
-                                                            {executionResult.output && <pre className="output-stdout">{executionResult.output}</pre>}
-                                                            {executionResult.error && <pre className="output-stderr">{executionResult.error}</pre>}
-                                                            {!executionResult.output && !executionResult.error && <div className="terminal-empty">No output</div>}
-                                                        </>
                                                     ) : (
-                                                        <div className="terminal-empty">Ready to execute...</div>
+                                                        <>
+                                                            <div className="terminal-output-container">
+                                                                {executionResult?.output && <pre className="output-stdout">{executionResult.output}</pre>}
+                                                                {executionResult?.error && <pre className="output-stderr">{executionResult.error}</pre>}
+                                                            </div>
+
+                                                            <div className="terminal-shell-line">
+                                                                <span className="terminal-prompt-char">$</span>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder=""
+                                                                    value={terminalInput}
+                                                                    onChange={(e) => setTerminalInput(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') {
+                                                                            runCode();
+                                                                        }
+                                                                    }}
+                                                                    className="terminal-shell-input"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
@@ -266,7 +455,10 @@ export default function ProgrammingView({
                         <div className="editor-footer">
                             <button
                                 className={`run-btn ${isExecuting ? 'executing' : ''}`}
-                                onClick={runCode}
+                                onClick={() => {
+                                    setAccumulatedStdin(""); // Reset session for a fresh run from the main button
+                                    runCode("");
+                                }}
                                 disabled={isExecuting || !code.trim()}
                             >
                                 {isExecuting ? (
@@ -299,12 +491,13 @@ export default function ProgrammingView({
                             </div>
                             <div className="modal-body">
                                 <div className="fullscreen-graph-container">
-                                    <GraphCanvas
+                                    <OrganicTreeGraph
                                         graphData={graphData}
                                         onNodeClick={onNodeClick}
+                                        onExpandNode={onExpandNode}
                                         selectedNode={selectedNode}
-                                        externalSelectedNode={externalSelectedNode}
                                         mode="programming"
+                                        loading={loading}
                                     />
                                 </div>
                             </div>
@@ -312,6 +505,6 @@ export default function ProgrammingView({
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 }
