@@ -17,7 +17,8 @@ import {
     Wand2,
     Sparkles,
     Layout,
-    Eraser
+    Eraser,
+    Download
 } from "lucide-react";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
@@ -133,6 +134,12 @@ export default function ProgrammingView({
         toast.info("Terminal Cleared");
     };
 
+    const handleDownloadGraph = () => {
+        if (graphData.nodes.length === 0) return;
+        toast.info("Preparing graph export...");
+        window.dispatchEvent(new Event('export-organic-graph'));
+    };
+
     const handleFileOpen = (event) => {
         const file = event.target.files[0];
         if (file) {
@@ -169,6 +176,14 @@ export default function ProgrammingView({
                                 {loading && <div className="loading-dot" />}
                             </div>
                             <div className="toolbar-right">
+                                <button
+                                    className="toolbar-btn"
+                                    onClick={handleDownloadGraph}
+                                    disabled={graphData.nodes.length === 0}
+                                    title="Download Graph"
+                                >
+                                    <Download size={16} />
+                                </button>
                                 <button
                                     className="toolbar-btn"
                                     onClick={() => setIsFullscreen(true)}
@@ -485,9 +500,14 @@ export default function ProgrammingView({
                         <div className="modal-content">
                             <div className="modal-header">
                                 <h3>Logic Flow Visualization</h3>
-                                <button className="close-modal" onClick={() => setIsFullscreen(false)}>
-                                    <X size={24} />
-                                </button>
+                                <div className="modal-actions">
+                                    <button className="toolbar-btn" onClick={handleDownloadGraph} title="Download Graph">
+                                        <Download size={20} />
+                                    </button>
+                                    <button className="close-modal" onClick={() => setIsFullscreen(false)}>
+                                        <X size={24} />
+                                    </button>
+                                </div>
                             </div>
                             <div className="modal-body">
                                 <div className="fullscreen-graph-container">
