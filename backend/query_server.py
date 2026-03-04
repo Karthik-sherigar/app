@@ -259,10 +259,9 @@ async def explain_node(request: Request):
             except Exception as e:
                 logging.warning(f"YouTube scrape failed: {e}")
             
-            return json.dumps(videos, indent=4)
+            return videos
 
-        videos_json_str = get_real_youtube_embeds(node_label)
-
+        # Define the prompt strictly for the text responses to minimize token generation
         prompt = f"""You are an expert educator. Generate a comprehensive, structured explanation for the concept: "{node_label}"
 Context: {context}
 
@@ -282,8 +281,7 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
         "content": "A detailed paragraph explaining the core mechanism, process, or architecture.",
         "bullets": [
           "Key mechanism or step 1 with brief explanation",
-          "Key mechanism or step 2 with brief explanation",
-          "Key mechanism or step 3 with brief explanation"
+          "Key mechanism or step 2 with brief explanation"
         ]
       }},
       {{
@@ -291,8 +289,7 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
         "content": "A paragraph describing where and how this concept is applied in practice.",
         "bullets": [
           "Application 1: specific real-world use case",
-          "Application 2: specific real-world use case",
-          "Application 3: specific real-world use case"
+          "Application 2: specific real-world use case"
         ]
       }},
       {{
@@ -300,98 +297,99 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
         "content": "",
         "bullets": [
           "Most important insight about {node_label}",
-          "Critical concept or principle to remember",
-          "Common misconception clarified",
-          "Future direction or emerging trend",
-          "Practical tip for understanding or applying this concept"
+          "Critical concept or principle to remember"
         ]
       }}
     ]
-  }},
-  "externalLinks": [
-    {{
-      "title": "Wikipedia — {node_label}",
-      "url": "https://en.wikipedia.org/wiki/{wiki_slug}",
-      "description": "The comprehensive Wikipedia article covering the history, theory, and detailed technical aspects of {node_label}. A great starting point for deep research."
-    }},
-    {{
-      "title": "Relevant tutorial or course (provide a real URL)",
-      "url": "https://www.coursera.org/search?query={node_label.replace(' ', '+')}",
-      "description": "Online courses and structured learning paths covering {node_label} from beginner to advanced level, with hands-on projects and certificates."
-    }},
-    {{
-      "title": "Research papers and academic resources",
-      "url": "https://scholar.google.com/scholar?q={node_label.replace(' ', '+')}",
-      "description": "Academic papers, research articles, and scholarly publications on {node_label}. Ideal for understanding the scientific and theoretical foundations."
-    }},
-    {{
-      "title": "Official documentation or authoritative source (provide a real URL if known)",
-      "url": "https://www.google.com/search?q={node_label.replace(' ', '+')}+official+documentation",
-      "description": "Official documentation, specifications, or authoritative reference material for {node_label}. Best for technical accuracy and implementation details."
-    }}
-  ],
-  "images": [
-    {{
-      "title": "{node_label} — Architecture Diagram",
-      "googleSearchUrl": "{google_img_base}+architecture+diagram",
-      "description": "Visual diagrams showing the structural architecture and component relationships of {node_label}. Helpful for understanding how the parts fit together."
-    }},
-    {{
-      "title": "{node_label} — Infographic Overview",
-      "googleSearchUrl": "{google_img_base}+infographic+explained",
-      "description": "Infographics and visual summaries that explain {node_label} concepts in an easy-to-understand visual format. Great for quick comprehension."
-    }},
-    {{
-      "title": "{node_label} — Real-World Examples",
-      "googleSearchUrl": "{google_img_base}+real+world+example",
-      "description": "Photographs and illustrations showing {node_label} in real-world contexts and practical applications."
-    }},
-    {{
-      "title": "{node_label} — Step-by-Step Process",
-      "googleSearchUrl": "{google_img_base}+step+by+step+process+flowchart",
-      "description": "Flowcharts and step-by-step visual guides illustrating how {node_label} works as a process or workflow."
-    }}
-  ],
-  "videos": {videos_json_str}
+  }}
 }}"""
 
         explanation = None
         last_error = None
-
-        # Priority 1: Groq (Blazing Fast API)
-        try:
-            explanation = await generate_with_groq(prompt, json_mode=True)
-        except Exception as e:
-            logging.warning(f"Groq explain failed: {e}")
-            last_error = e
-
-        # Priority 2: Gemini
-        if not explanation:
+        
+        async def fetch_llm():
+            # Priority 1: Groq (Blazing Fast API)
             try:
-                explanation = await _generate_with_gemini_internal("gemini-2.0-flash", prompt)
+                return await generate_with_groq(prompt, json_mode=True)
             except Exception as e:
-                 logging.warning(f"Gemini explain failed: {e}")
-                 last_error = e
-
-        # Priority 3: Cohere
-        if not explanation:
+                logging.warning(f"Groq explain failed: {e}")
+                
+            # Priority 2: Gemini
             try:
-                explanation = await generate_with_cohere(prompt)
+                return await _generate_with_gemini_internal("gemini-2.0-flash", prompt)
+            except Exception as e:
+                logging.warning(f"Gemini explain failed: {e}")
+                
+            # Priority 3: Cohere
+            try:
+                return await generate_with_cohere(prompt)
             except Exception as e:
                 logging.warning(f"Cohere explain failed: {e}")
-                last_error = e
+                raise Exception("Explanation generation failed. All AI services unavailable.")
 
-        if not explanation:
-             raise HTTPException(status_code=503, detail=f"Explanation generation failed. All AI services unavailable. Last error: {str(last_error)}")
+        import asyncio
+        async def fetch_videos():
+            return await asyncio.to_thread(get_real_youtube_embeds, node_label)
+            
+        # Run LLM generation and YouTube scrape concurrently
+        explanation_result, videos_result = await asyncio.gather(fetch_llm(), fetch_videos(), return_exceptions=True)
+
+        if isinstance(explanation_result, Exception):
+             raise HTTPException(status_code=503, detail=str(explanation_result))
+             
+        explanation = explanation_result
 
         result = extract_json(explanation)
         
-        # Filter Videos
-        if "videos" in result:
-            result["videos"] = [
-                v for v in result["videos"] 
-                if "embedUrl" in v and "???" not in v["embedUrl"] and "REPLACE" not in v["embedUrl"]
-            ]
+        # Inject the static pre-calculated data structures automatically to bypass LLM generation time
+        result["externalLinks"] = [
+            {
+                "title": f"Wikipedia — {node_label}",
+                "url": f"https://en.wikipedia.org/wiki/{wiki_slug}",
+                "description": f"The comprehensive Wikipedia article covering the history, theory, and detailed technical aspects of {node_label}. A great starting point for deep research."
+            },
+            {
+                "title": f"Relevant tutorial or course",
+                "url": f"https://www.coursera.org/search?query={node_label.replace(' ', '+')}",
+                "description": f"Online courses and structured learning paths covering {node_label} from beginner to advanced level, with hands-on projects and certificates."
+            },
+            {
+                "title": f"Research papers and academic resources",
+                "url": f"https://scholar.google.com/scholar?q={node_label.replace(' ', '+')}",
+                "description": f"Academic papers, research articles, and scholarly publications on {node_label}. Ideal for understanding the scientific and theoretical foundations."
+            },
+            {
+                "title": f"Official documentation or authoritative source",
+                "url": f"https://www.google.com/search?q={node_label.replace(' ', '+')}+official+documentation",
+                "description": f"Official documentation, specifications, or authoritative reference material for {node_label}. Best for technical accuracy and implementation details."
+            }
+        ]
+        
+        result["images"] = [
+            {
+                "title": f"{node_label} — Architecture Diagram",
+                "googleSearchUrl": f"{google_img_base}+architecture+diagram",
+                "description": f"Visual diagrams showing the structural architecture and component relationships of {node_label}."
+            },
+            {
+                "title": f"{node_label} — Infographic Overview",
+                "googleSearchUrl": f"{google_img_base}+infographic+explained",
+                "description": f"Infographics and visual summaries that explain {node_label} concepts in an easy-to-understand visual format."
+            },
+            {
+                "title": f"{node_label} — Real-World Examples",
+                "googleSearchUrl": f"{google_img_base}+real+world+example",
+                "description": f"Photographs and illustrations showing {node_label} in real-world contexts and practical applications."
+            },
+            {
+                "title": f"{node_label} — Step-by-Step Process",
+                "googleSearchUrl": f"{google_img_base}+step+by+step+process+flowchart",
+                "description": f"Flowcharts and step-by-step visual guides illustrating how {node_label} works as a process or workflow."
+            }
+        ]
+        
+        # Assign correctly fetched videos payload
+        result["videos"] = videos_result if not isinstance(videos_result, Exception) else []
 
         logging.info(f"Extracted JSON keys: {list(result.keys())}")
         return result
@@ -470,7 +468,7 @@ STRICT RULES (MUST FOLLOW EXACTLY):
 1. CATEGORY: Analyze the topic and context. Pick the MOST RELEVANT category from: COMP_SCI, SCIENCE, HUMANITIES, MEDICAL, or GENERAL. (e.g., World War 2 must be HUMANITIES, Biology must be SCIENCE).
 2. OVERVIEW: Must be a highly detailed, textbook-level explanation of the topic (at least 600-800 words). Break it down thoroughly. Use multiple paragraphs separated by \\n\\n.
 3. MODULE CONTENT: For 'steps' or 'derivation' types, write EACH step as a NUMBERED item on its OWN LINE using \\n. EACH step must contain an exhaustive, highly detailed paragraph of information (at least 150 words per step). Do NOT just output short sentences, it must feel like reading an encyclopedic textbook.
-4. imagePrompt: A single descriptive sentence for an academic scientific, technological, or historical diagram. Keep it concept-art focused and tell the prompt to strictly avoid generating text/words inside the image.
+4. imagePrompt: A single descriptive sentence for an academic scientific, technological, or historical diagram. Ensure it describes a professional textbook visualization (e.g., flat, clean, structural) and NOT abstract or futuristic AI art. Tell the prompt to strictly avoid generating text/words inside the image.
 5. ALL values must be plain strings. Zero nested JSON objects as field values.
 
 Return ONLY this valid JSON:
