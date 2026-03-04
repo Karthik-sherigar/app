@@ -8,7 +8,7 @@ import "./Navbar.css"; // Ensure CSS is tracked
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
 
-function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout }) {
+function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onToggleSidebar }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -46,6 +46,15 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout }) {
   return (
     <nav className="navbar" data-testid="navbar">
       <div className="navbar-left">
+        {mode && mode !== 'null' && (
+          <button
+            className="icon-btn mobile-hamburger-btn"
+            onClick={onToggleSidebar}
+            title="Toggle Menu"
+          >
+            <Menu size={24} />
+          </button>
+        )}
 
         <div
           className="navbar-brand-click"
