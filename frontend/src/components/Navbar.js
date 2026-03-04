@@ -48,16 +48,6 @@ function Navbar({ mode, setMode, backendStatus, theme, setTheme, onLogout, onTog
       <div className="navbar-left">
         {mode && mode !== 'null' && (
           <button
-            className="back-btn-circular"
-            onClick={() => setMode(null)}
-            title="Back to Dashboard"
-          >
-            <ArrowLeft size={20} />
-          </button>
-        )}
-
-        {mode && mode !== 'null' && (
-          <button
             className="icon-btn mobile-hamburger-btn"
             onClick={onToggleSidebar}
             title="Toggle Menu"
