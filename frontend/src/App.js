@@ -50,7 +50,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem("authenticated") === "true" || false;
   });
-  
+
   // Extract initial state from URL to fundamentally prevent UI page flashing (Home Page -> Loader)
   const getInitialMode = () => {
     const searchParams = new URLSearchParams(location.search);
@@ -59,10 +59,10 @@ function App() {
     if (location.pathname === '/query') return 'query';
     if (location.pathname === '/pdf') return 'pdf';
     if (location.pathname === '/programming') return 'programming';
-    
+
     // Check old style parameter mapping
     const qp = new URLSearchParams(window.location.search);
-    if(qp.get("mode")) return qp.get("mode");
+    if (qp.get("mode")) return qp.get("mode");
     return null;
   };
 
@@ -132,7 +132,7 @@ function App() {
             isRestoringRef.current = true; // Lock out the canvas wiper!
 
             const normalizedData = dataToRestore.graph ? { ...dataToRestore.graph, ...dataToRestore } : dataToRestore;
-            
+
             // Bypass prevent-clear logic by setting mode directly first
             setMode(historyItem.mode || restoreMode);
             prevModeRef.current = historyItem.mode || restoreMode;
@@ -144,7 +144,7 @@ function App() {
             toast.success("Expedition restored from URL.");
 
             setTimeout(() => {
-                isRestoringRef.current = false;
+              isRestoringRef.current = false;
             }, 150);
           }
         } catch (e) {
@@ -160,7 +160,7 @@ function App() {
       };
       // Short timeout to guarantee mode swap doesn't clear our data asynchronously
       setTimeout(loadHistoryFromUrl, 50);
-      
+
     } else if (initMode) {
       window.history.replaceState({}, document.title, window.location.pathname);
       setMode(initMode);
@@ -179,7 +179,7 @@ function App() {
     } else if (!currentHistoryId && mode) {
       // Clear history tracking if we start a fresh session but keep mode
       if (window.location.search.includes('historyId')) {
-         window.history.replaceState(null, '', `/${mode}`);
+        window.history.replaceState(null, '', `/${mode}`);
       }
     }
   }, [currentHistoryId, mode]);
@@ -245,9 +245,9 @@ function App() {
     // Only clear if the mode actually changed and we aren't loading new data for the current mode
     if (prevModeRef.current !== mode) {
       if (isRestoringRef.current) {
-         console.log(`Bypassing canvas wipe during restoration to ${mode}.`);
-         prevModeRef.current = mode;
-         return;
+        console.log(`Bypassing canvas wipe during restoration to ${mode}.`);
+        prevModeRef.current = mode;
+        return;
       }
       console.log(`Mode changing from ${prevModeRef.current} to ${mode}. Clearing workspace.`);
       setGraphData({ nodes: [], edges: [] });
@@ -341,10 +341,10 @@ function App() {
 
       const data = response.data;
       console.log("PDF Response Data:", data);
-      
+
       const nodes = data.nodes || data.graph?.nodes || [];
       const edges = data.edges || data.graph?.edges || [];
-      
+
       console.log(`Setting PDF Graph State: ${nodes.length} nodes, ${edges.length} edges`);
 
       const finalGraph = {
@@ -360,9 +360,9 @@ function App() {
       setActiveQuery(finalGraph.title);
       setSelectedNode(null);
       setShowNodePanel(false);
-      
+
       if (data.historyId) setCurrentHistoryId(data.historyId);
-      
+
       setHasNewResponse(true);
       toast.success("Document roadmap generated!");
       fetchHistory();
@@ -382,7 +382,8 @@ function App() {
         node_id: nodeId,
         node_label: nodeLabel,
         mode: mode,
-        current_graph: { nodes: graphData.nodes || [], edges: graphData.edges || [] }
+        current_graph: { nodes: graphData.nodes || [], edges: graphData.edges || [] },
+        context_code: mode === 'programming' ? programmingCode : null
       });
 
       setGraphData(prev => ({
@@ -473,10 +474,10 @@ function App() {
         const targetMode = historyItem.mode || 'query';
         // Block the canvas-wipe useEffect from running!
         isRestoringRef.current = true;
-        
+
         // Synchronously jump the route first
-        navigate(`/${targetMode}`); 
-        
+        navigate(`/${targetMode}`);
+
         // Immediately sync the underlying ref tracker so the wiping useEffect ignores this!
         prevModeRef.current = targetMode;
 
@@ -494,7 +495,7 @@ function App() {
         }
 
         toast.success("Expedition history restored.");
-        
+
         // Unlock restoration bypass safely after routing settles
         setTimeout(() => {
           isRestoringRef.current = false;
@@ -524,7 +525,7 @@ function App() {
       if (window.confirm(`Are you sure you want to delete all history for ${mode} mode?`)) {
         const email = localStorage.getItem("userEmail");
         await axios.delete(`${API}/history`, {
-           params: { mode: mode, user_email: email }
+          params: { mode: mode, user_email: email }
         });
         setHistory(prev => prev.filter(h => h.mode !== mode));
         if (mode === "pdf") {
@@ -560,35 +561,35 @@ function App() {
   }, []);
 
   const handleLoginSuccess = () => {
-      localStorage.setItem("authenticated", "true");
-      setIsAuthenticated(true);
+    localStorage.setItem("authenticated", "true");
+    setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-      localStorage.removeItem("authenticated");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("profilePic");
-      setIsAuthenticated(false);
-      setMode(null);
-      setHistory([]);
+    localStorage.removeItem("authenticated");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("profilePic");
+    setIsAuthenticated(false);
+    setMode(null);
+    setHistory([]);
   };
 
   // ROUTING CHECK
   if (!isAuthenticated && location.pathname !== '/login') {
-      return <LoginPage onLogin={handleLoginSuccess} />;
+    return <LoginPage onLogin={handleLoginSuccess} />;
   }
-  
+
   if (location.pathname === '/login') {
-      return <LoginPage onLogin={handleLoginSuccess} />;
+    return <LoginPage onLogin={handleLoginSuccess} />;
   }
 
   if (location.pathname.startsWith('/explore')) {
     const searchParams = new URLSearchParams(location.search);
     const routeMode = searchParams.get('mode');
-    
+
     if (routeMode === 'pdf') {
-       return <PDFExplorationPage />;
+      return <PDFExplorationPage />;
     }
     return <ExplorationPage />;
   }
@@ -608,31 +609,31 @@ function App() {
 
       <div className="app-layout">
         {mode !== null && (
-            <Sidebar
-              mode={mode}
-              isMobileOpen={isMobileSidebarOpen}
-              setMobileOpen={setIsMobileSidebarOpen}
-              generateGraph={generateGraph}
-              generateGraphFromPDF={generateGraphFromPDF}
-              handleNewQuery={handleNewQuery}
-              handleTemporaryQuery={handleTemporaryQuery}
-              deleteAllHistory={deleteAllHistory}
-              explainConfusion={() => {
-                if (selectedNode) {
-                  explainConfusion(selectedNode.label);
-                } else {
-                  toast.error("Identify a station first.");
-                }
-              }}
-              resetGraph={resetGraph}
-              history={history}
-              restoreFromHistory={restoreFromHistory}
-              deleteHistoryItem={deleteHistoryItem}
-              onShowFullHistory={fetchFullHistory}
-              loading={loading}
-              isCollapsed={isSidebarCollapsed}
-              setIsCollapsed={setIsSidebarCollapsed}
-            />
+          <Sidebar
+            mode={mode}
+            isMobileOpen={isMobileSidebarOpen}
+            setMobileOpen={setIsMobileSidebarOpen}
+            generateGraph={generateGraph}
+            generateGraphFromPDF={generateGraphFromPDF}
+            handleNewQuery={handleNewQuery}
+            handleTemporaryQuery={handleTemporaryQuery}
+            deleteAllHistory={deleteAllHistory}
+            explainConfusion={() => {
+              if (selectedNode) {
+                explainConfusion(selectedNode.label);
+              } else {
+                toast.error("Identify a station first.");
+              }
+            }}
+            resetGraph={resetGraph}
+            history={history}
+            restoreFromHistory={restoreFromHistory}
+            deleteHistoryItem={deleteHistoryItem}
+            onShowFullHistory={fetchFullHistory}
+            loading={loading}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
         )}
 
         <main
@@ -649,15 +650,16 @@ function App() {
               graphData={graphData}
               loading={loading}
               onNodeClick={handleNodeClick}
+              onExpandNode={expandNode}
               selectedNode={selectedNode}
               externalSelectedNode={externalSelectedNode}
             />
           ) : (graphData.nodes && graphData.nodes.length > 0) ? (
             <div key={`graph-${mode}-${currentHistoryId}`} className="graph-workspace-container">
               {mode === 'pdf' ? (
-                <PDFLearningPath 
-                  data={graphData} 
-                  pdfFilename={activeQuery.startsWith("PDF: ") ? activeQuery.replace("PDF: ", "") : "Document"} 
+                <PDFLearningPath
+                  data={graphData}
+                  pdfFilename={activeQuery.startsWith("PDF: ") ? activeQuery.replace("PDF: ", "") : "Document"}
                   onNodeClick={(node) => {
                     window.open(`/explore?nodeId=${node.id}&mode=pdf&label=${encodeURIComponent(node.label)}&historyId=${currentHistoryId}`, '_blank');
                   }}
@@ -727,9 +729,9 @@ function App() {
                 {isRestoringFromDb ? <Loader2 className="animate-spin" size={48} color="var(--accent-primary)" /> : <PDFLoadingAnimation />}
               </div>
             ) : (
-              <PDFUploadLanding 
-                onUpload={generateGraphFromPDF} 
-                loading={loading} 
+              <PDFUploadLanding
+                onUpload={generateGraphFromPDF}
+                loading={loading}
               />
             )
           ) : loading ? (
@@ -737,12 +739,12 @@ function App() {
               <GraphLoadingAnimation mode={mode} />
             </div>
           ) : mode === 'query' ? (
-             <QueryLanding />
+            <QueryLanding />
           ) : (
-            <HomePage 
-              setMode={handleModeChange} 
-              history={history} 
-              onLogout={handleLogout} 
+            <HomePage
+              setMode={handleModeChange}
+              history={history}
+              onLogout={handleLogout}
               onRestore={restoreFromHistory}
             />
           )}
