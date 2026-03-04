@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { getIconForType } from './VisualJourney/utils/iconMapper';
 import './TreeNodeCard.css';
 
-const TreeNodeCard = ({ node, onClick, level = 0 }) => {
+const TreeNodeCard = ({ node, onClick, level = 0, selected = false }) => {
     const Icon = getIconForType(node.type);
 
     // Glowing vibrant themes inspired by the reference image
@@ -30,7 +30,9 @@ const TreeNodeCard = ({ node, onClick, level = 0 }) => {
                 width: `${width}px`,
                 cursor: 'pointer',
                 '--theme-glow': theme.glow,
-                '--theme-main': theme.main
+                '--theme-main': theme.main,
+                border: selected ? `2px solid ${theme.glow}` : '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: selected ? `0 0 40px ${theme.glow}60, inset 0 0 20px ${theme.main}30` : `0 0 20px rgba(0,0,0,0.5)`
             }}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -41,7 +43,7 @@ const TreeNodeCard = ({ node, onClick, level = 0 }) => {
             }}
             whileHover={{
                 scale: 1.03,
-                boxShadow: `0 0 30px ${theme.glow}40, inset 0 0 20px ${theme.main}20`
+                boxShadow: selected ? `0 0 50px ${theme.glow}80` : `0 0 30px ${theme.glow}40, inset 0 0 20px ${theme.main}20`
             }}
             onClick={() => onClick && onClick(node)}
             data-testid={`node-${node.id}`}
