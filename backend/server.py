@@ -311,10 +311,10 @@ async def generate_image(request: Request):
             "Accept": "application/json",
         }
         
-        # Adding constraints to fix the "alien language" issue
+        # Adding constraints to enforce clean, academic, non-AI aesthetics while blocking text
         payload = {
-            "prompt": f"{prompt}. Highly detailed, clear conceptual illustration, professional layout, 8k resolution, cinematic lighting. ABSOLUTELY NO text, NO words, NO letters, NO labels",
-            "negative_prompt": "text, words, letters, typography, fonts, watermark, labels, alien language, gibberish",
+            "prompt": f"{prompt}. Flat vector illustration style, clean academic diagram, white background, university textbook infographic aesthetic, strictly professional visualization, clear structure. ABSOLUTELY NO text, NO words, NO letters, NO numbers, NO labels",
+            "negative_prompt": "cyberpunk, neon, glowing, 3d render, cinematic lighting, dark background, text, words, letters, typography, fonts, watermark, labels, alien language, gibberish, abstract art",
         }
 
         image_url = None
