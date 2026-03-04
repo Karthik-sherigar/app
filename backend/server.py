@@ -87,8 +87,14 @@ async def pdf_chat_proxy(request: Request):
 async def expand_node_proxy(request: Request):
     try:
         body = await request.json()
-        # Node expansion is currently handled by query server
-        response = await client.post(f"{QUERY_SERVER_URL}/api/expand-node", json=body, timeout=90.0)
+        mode = body.get("mode", "query")
+        
+        if mode == "programming":
+            target_url = f"{PROGRAMMING_SERVER_URL}/api/expand-node"
+        else:
+            target_url = f"{QUERY_SERVER_URL}/api/expand-node"
+            
+        response = await client.post(target_url, json=body, timeout=90.0)
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (expand-node): {e}")
@@ -102,6 +108,16 @@ async def execute_code_proxy(request: Request):
         return response.json()
     except Exception as e:
         logging.error(f"Proxy error (execute-code): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/format-code")
+async def format_code_proxy(request: Request):
+    try:
+        body = await request.json()
+        response = await client.post(f"{PROGRAMMING_SERVER_URL}/api/format-code", json=body, timeout=30.0)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Proxy error (format-code): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/explain-confusion")
