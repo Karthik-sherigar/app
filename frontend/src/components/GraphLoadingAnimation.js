@@ -21,6 +21,15 @@ const PDF_VERBS = [
     "Generating knowledge tree"
 ];
 
+const PROGRAMMING_VERBS = [
+    "Parsing source code",
+    "Identifying functions",
+    "Mapping control flow",
+    "Analyzing logic branches",
+    "Constructing logic tree",
+    "Finalizing visualization"
+];
+
 const ICONS = [Network, Database, Brain, Cpu, Zap, Activity];
 
 // Binary Tree Layout: 1 Root -> 2 Children
@@ -42,8 +51,8 @@ const SkeletonNode = ({ x, y, icon, lines, delay }) => {
     return (
         <motion.div
             className="skeleton-node"
-            style={{ 
-                left: x, 
+            style={{
+                left: x,
                 top: y
             }}
             initial={{ opacity: 0, scale: 0.8, x: "-50%", y: "-50%" }}
@@ -109,7 +118,7 @@ const SkeletonEdge = ({ sourceId, targetId, delay }) => {
 
 const GraphLoadingAnimation = ({ mode = 'query' }) => {
     const [verbIndex, setVerbIndex] = useState(0);
-    const currentVerbs = mode === 'pdf' ? PDF_VERBS : VERBS;
+    const currentVerbs = mode === 'pdf' ? PDF_VERBS : (mode === 'programming' ? PROGRAMMING_VERBS : VERBS);
 
     // Swap text every 2s
     useEffect(() => {
@@ -119,7 +128,7 @@ const GraphLoadingAnimation = ({ mode = 'query' }) => {
         return () => clearInterval(interval);
     }, [currentVerbs.length]);
 
-    if (mode !== 'query' && mode !== 'pdf') {
+    if (mode !== 'query' && mode !== 'pdf' && mode !== 'programming') {
         return (
             <div className="graph-loading-container minimal">
                 <div className="minimal-loader">
