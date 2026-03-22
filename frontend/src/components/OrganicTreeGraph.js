@@ -196,8 +196,8 @@ const OrganicTreeGraph = ({ graphData, onNodeClick, onExploreNode, onExpandNode,
         if (!tree) return [];
 
         const positions = [];
-        const VERTICAL_SPACING = 360; // Balanced for depth
-        const HORIZONTAL_SPACING = 480; // Compact but clear
+        const VERTICAL_SPACING = 240; // Balanced for depth
+        const HORIZONTAL_SPACING = 400; // Compact but clear
         const NODE_WIDTH = 340;
 
         let leafCount = 0;

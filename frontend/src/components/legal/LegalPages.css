@@ -1,0 +1,282 @@
+/* 
+   LegalPages.css - Premium Documentation Design 
+   Branding: KnowledgeGraph AI (Purple to Green Gradient)
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700&display=swap');
+
+:root {
+    --bg-dark: #0b1220;
+    --bg-card: rgba(17, 24, 39, 0.7);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --accent-purple: #6366f1;
+    --accent-green: #10b981;
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --font-main: 'Inter', sans-serif;
+    --font-heading: 'Manrope', sans-serif;
+    --max-width: 900px;
+}
+
+/* Force scrollability even if parents have overflow:hidden */
+html, body {
+    overflow: auto !important;
+    height: auto !important;
+}
+
+/* Base scrollable container */
+.legal-page-container {
+    width: 100%;
+    height: 100vh; /* Changed from min-height to height for container-level scroll */
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    position: relative;
+    z-index: 10;
+}
+
+/* Background Effects */
+.legal-page-container::before {
+    content: '';
+    position: fixed;
+    top: -10%;
+    left: -10%;
+    width: 40%;
+    height: 40%;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.legal-page-container::after {
+    content: '';
+    position: fixed;
+    bottom: -10%;
+    right: -10%;
+    width: 40%;
+    height: 40%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Navigation / Header */
+.legal-nav {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    padding: 20px 40px;
+    background: rgba(11, 18, 32, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+}
+
+.btn-back {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    text-decoration: none;
+}
+
+.btn-back:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-purple);
+    transform: translateX(-4px);
+}
+
+.brand-mini {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-mini .logo-box {
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-green));
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+}
+
+.brand-mini span {
+    font-weight: 700;
+    font-size: 16px;
+    font-family: var(--font-heading);
+    background: linear-gradient(to right, var(--accent-purple), var(--accent-green));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+}
+
+/* Main Content Area */
+.legal-content-wrapper {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: var(--max-width);
+    margin: 60px auto 0;
+    padding: 0 24px;
+}
+
+.legal-header {
+    margin-bottom: 64px;
+    text-align: center;
+}
+
+.legal-header h1 {
+    font-family: var(--font-heading);
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    margin-bottom: 16px;
+    letter-spacing: -0.04em;
+    color: #fff;
+    background: linear-gradient(180deg, #fff 0%, #a5b4fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.last-updated {
+    font-size: 13px;
+    color: var(--accent-green);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.9;
+}
+
+/* Document Body */
+.legal-body {
+    background: rgba(17, 24, 39, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 32px;
+    padding: 64px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 40px 100px -20px rgba(0,0,0,0.5);
+}
+
+.legal-section {
+    margin-bottom: 64px;
+}
+
+.legal-section:last-child {
+    margin-bottom: 0;
+}
+
+.legal-section h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.section-icon-wrap {
+    color: var(--accent-green);
+    display: flex;
+    align-items: center;
+}
+
+.legal-section p {
+    font-size: 17px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+.legal-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 24px 0;
+}
+
+.legal-section li {
+    position: relative;
+    padding-left: 32px;
+    margin-bottom: 16px;
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+.legal-section li::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    width: 6px;
+    height: 6px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.legal-section li strong {
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Specific highlight cards */
+.highlight-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 32px;
+    border-radius: 20px;
+    margin: 40px 0;
+}
+
+.highlight-card h4 {
+    color: var(--accent-purple);
+    margin-bottom: 12px;
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    .legal-nav {
+        padding: 16px 24px;
+    }
+    .legal-content-wrapper {
+        margin-top: 40px;
+    }
+    .legal-header {
+        margin-bottom: 40px;
+    }
+    .legal-header h1 {
+        font-size: 32px;
+    }
+    .legal-body {
+        padding: 40px 24px;
+        border-radius: 24px;
+    }
+    .legal-section h2 {
+        font-size: 20px;
+    }
+    .legal-section p {
+        font-size: 16px;
+    }
+}

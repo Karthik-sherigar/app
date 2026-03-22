@@ -17,7 +17,7 @@ const PDFLoadingAnimation = () => {
   // We'll advance the step every 2 seconds. The real process takes variable time, but
   // standard skeleton loaders often just loop or stall at the last step.
   useEffect(() => {
-    // Increased interval to 4.5 seconds per step. Backend tasks generally take ~20 seconds
+    // Increased interval to 8 seconds per step. Slow networks / large documents often take 35-40 seconds.
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
         // We can either freeze on the last step or loop. Let's stall at the last step (index 4).
@@ -26,7 +26,7 @@ const PDFLoadingAnimation = () => {
         }
         return prev;
       });
-    }, 4500);
+    }, 8500);
 
     return () => clearInterval(interval);
   }, []);

@@ -3,6 +3,8 @@ import NodeExplanation from './NodeExplanation';
 import HorizontalDivider from './HorizontalDivider';
 import './NodeExplorationStack.css';
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8015";
+
 const NodeExplorationStack = ({ onNodeClick }) => {
     const [exploredNodes, setExploredNodes] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -25,7 +27,7 @@ const NodeExplorationStack = ({ onNodeClick }) => {
 
         try {
             // Fetch detailed explanation from backend
-            const response = await fetch('/api/explain-node', {
+            const response = await fetch(`${BACKEND_URL}/api/explain-node`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -72,7 +72,7 @@ def send_otp(req: SendOTPRequest):
         # Check if user already exists
         existing_user = db.query(User).filter(User.email == req.email).first()
         if existing_user and existing_user.is_verified == 1:
-            raise HTTPException(status_code=400, detail="Account with this email already exists.")
+            raise HTTPException(status_code=400, detail="ACCOUNT_EXISTS: An account with this email already exists. Please log in.")
 
         # Generate 6 digit OTP
         otp_code = ''.join(random.choices(string.digits, k=6))

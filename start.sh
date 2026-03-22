@@ -34,12 +34,12 @@ pip install -r requirements.txt
 
 echo "🔥 Launching Backend Multi-Servers..."
 # We run these in background with logs directed to file to keep console clean
-uvicorn query_server:app --host 0.0.0.0 --port 8001 --reload > query_server.log 2>&1 &
-uvicorn pdf_server:app --host 0.0.0.0 --port 8002 --reload > pdf_server.log 2>&1 &
-uvicorn programming_server:app --host 0.0.0.0 --port 8003 --reload > programming_server.log 2>&1 &
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload > main_server.log 2>&1 &
+uvicorn query_server:app --host 0.0.0.0 --port 8011 > query_server.log 2>&1 &
+uvicorn pdf_server:app --host 0.0.0.0 --port 8012 > pdf_server.log 2>&1 &
+uvicorn programming_server:app --host 0.0.0.0 --port 8013 > programming_server.log 2>&1 &
+uvicorn server:app --host 0.0.0.0 --port 8015 > main_server.log 2>&1 &
 
-echo "✅ Backend Gateway: http://localhost:8000"
+echo "✅ Backend Gateway: http://localhost:8015"
 
 # 2. Setup & Start Frontend
 echo "� Setting up Frontend..."
@@ -57,8 +57,8 @@ npm start &
 echo "==============================================="
 echo "✨ ALL SERVICES STARTED!"
 echo "🖥️  Frontend:  http://localhost:3000"
-echo "📡 Backend:   http://localhost:8000"
-echo "📚 API Docs:  http://localhost:8000/docs"
+echo "📡 Backend:   http://localhost:8015"
+echo "📚 API Docs:  http://localhost:8015/docs"
 echo "==============================================="
 echo "Logs are being written to backend/*.log files."
 echo "Press Ctrl+C to stop everything."

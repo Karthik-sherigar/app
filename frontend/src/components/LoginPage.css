@@ -140,6 +140,37 @@
     background-color: #1e293b;
 }
 
+/* Password Toggle Styles */
+.input-with-icon {
+    position: relative;
+    width: 100%;
+}
+
+.input-with-icon input {
+    padding-right: 40px; /* Space for the eye icon */
+}
+
+.icon-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    z-index: 5;
+    transition: color 0.2s;
+}
+
+.icon-toggle:hover {
+    color: #f3f4f6;
+}
+
 /* OTP Clean Font */
 .otp-clean-input {
     letter-spacing: 0.3em;

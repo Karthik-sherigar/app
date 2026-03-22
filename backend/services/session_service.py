@@ -211,9 +211,18 @@ class SessionService:
                 db.add(cache)
             db.commit()
             db.close()
-            logger.info(f"Cached deep dive for node: {node_id} (mode={mode})")
+            logger.info(f"Cached data for: {node_id} (mode={mode})")
         except Exception as e:
-            logger.error(f"Error saving deep dive cache: {e}")
+            logger.error(f"Error saving data to cache: {e}")
+
+    def cache_image_url(self, cache_key: str, image_url: str):
+        """Save image URL to cache."""
+        self.save_deep_dive(f"IMAGE_{cache_key}", image_url, mode="internal")
+
+    def get_cached_image_url(self, cache_key: str):
+        """Get image URL from cache."""
+        cache = self.get_deep_dive(f"IMAGE_{cache_key}", mode="internal")
+        return cache.data if cache else None
 
     def clear_deep_dive(self, mode: str = None):
         """Clear deep dive cache, optionally filtered by mode."""

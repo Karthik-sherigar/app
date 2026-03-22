@@ -27,6 +27,7 @@ const PDFExplorationPage = () => {
     
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -45,6 +46,7 @@ const PDFExplorationPage = () => {
                 setData(res.data);
             } catch (err) {
                 console.error("Deep dive fetch error:", err);
+                setError(err.message || "Failed to establish pedagogical connection.");
             } finally {
                 setLoading(false);
             }
@@ -141,6 +143,33 @@ const PDFExplorationPage = () => {
             <div className="pdf-explore-container loader-screen">
                 <Loader2 className="animate-spin" size={48} color="var(--accent-primary)" />
                 <p>Synthesizing Document Intelligence...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="pdf-explore-app">
+                <nav className="explore-nav">
+                    <button onClick={() => navigate(-1)} className="back-btn">
+                        <ChevronLeft size={20} />
+                        <span>Back</span>
+                    </button>
+                    <div className="nav-topic">
+                        <History size={18} />
+                        <span>Connection Error</span>
+                    </div>
+                </nav>
+                <div className="explore-workspace centered-error">
+                    <div className="empty-state">
+                        <History size={48} className="error-icon" style={{ color: "var(--accent-primary)", marginBottom: "1rem" }} />
+                        <h2>Knowledge Synapse Interrupted</h2>
+                        <p>{error}</p>
+                        <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", justifyContent: "center" }}>
+                            <button onClick={() => window.location.reload()} className="btn-primary" style={{ padding: "0.5rem 1.5rem", borderRadius: "8px", border: "none", background: "var(--accent-primary)", color: "white", cursor: "pointer" }}>Retry Connection</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

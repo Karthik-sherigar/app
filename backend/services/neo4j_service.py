@@ -15,21 +15,13 @@ class Neo4jService:
         
         try:
             self.driver = GraphDatabase.driver(uri, auth=(user, password))
-            # Retry connection logic (wait for Neo4j to start)
-            import time
-            max_retries = 15
-            for i in range(max_retries):
-                try:
-                    self.verify_connection()
-                    break
-                except Exception as e:
-                    if i < max_retries - 1:
-                        logger.info(f"Neo4j not ready yet, retrying in 2s... ({i+1}/{max_retries})")
-                        time.sleep(2)
-                    else:
-                        raise e
+            # Just try once and don't block. The rest of the app will work.
+            try:
+                self.verify_connection()
+            except Exception:
+                logger.warning("Neo4j not ready at startup. Will continue without it.")
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}")
+            logger.error(f"Failed to initialize Neo4j driver: {e}")
             self.driver = None
 
     def close(self):

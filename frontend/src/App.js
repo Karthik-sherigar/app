@@ -41,6 +41,11 @@ import LoginPage from "./components/LoginPage";
 import HomePage from "./components/HomePage";
 import QueryLanding from "./components/QueryLanding";
 
+// Legal Pages
+import PrivacyPage from "./components/legal/PrivacyPage";
+import TermsPage from "./components/legal/TermsPage";
+import SecurityPage from "./components/legal/SecurityPage";
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
 
@@ -162,7 +167,9 @@ function App() {
       setTimeout(loadHistoryFromUrl, 50);
 
     } else if (initMode) {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      if (!window.location.pathname.startsWith('/explore')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
       setMode(initMode);
       prevModeRef.current = initMode;
     }
@@ -171,6 +178,8 @@ function App() {
 
   // Natively sync the active database session into the URL so that browser refreshes perfectly restore the user's workspace
   useEffect(() => {
+    if (window.location.pathname.startsWith('/explore')) return;
+
     if (currentHistoryId && mode && mode !== 'null') {
       const targetUrl = `/${mode}?restoreMode=${mode}&historyId=${currentHistoryId}`;
       if (window.location.pathname + window.location.search !== targetUrl) {
@@ -295,7 +304,7 @@ function App() {
           mode: selectedMode || mode,
           is_temporary: isTemporary,
           user_email: email
-        }, { timeout: 45000 });
+        }, { timeout: 120000 });
 
         const data = response.data;
         // Merge graph data with metadata like 'answer' and 'sections'
@@ -576,7 +585,9 @@ function App() {
   };
 
   // ROUTING CHECK
-  if (!isAuthenticated && location.pathname !== '/login') {
+  // ROUTING CHECK
+  const publicPaths = ['/login', '/privacy', '/terms', '/security'];
+  if (!isAuthenticated && !publicPaths.includes(location.pathname)) {
     return <LoginPage onLogin={handleLoginSuccess} />;
   }
 
@@ -592,6 +603,17 @@ function App() {
       return <PDFExplorationPage />;
     }
     return <ExplorationPage />;
+  }
+
+  // Legal routes
+  if (location.pathname === '/privacy') {
+    return <PrivacyPage />;
+  }
+  if (location.pathname === '/terms') {
+    return <TermsPage />;
+  }
+  if (location.pathname === '/security') {
+    return <SecurityPage />;
   }
 
   return (
@@ -683,7 +705,7 @@ function App() {
                         document.querySelector('.node-explore-loading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }, 100);
                       try {
-                        const res = await fetch('/api/explain-node', {
+                        const res = await fetch(`${BACKEND_URL}/api/explain-node`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', 'x-mode': mode },
                           body: JSON.stringify({ nodeId: nodeData.id, nodeLabel: nodeData.label, context: nodeData.description || '' })

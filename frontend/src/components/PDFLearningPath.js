@@ -71,8 +71,8 @@ const PDFLearningPath = ({ data, pdfFilename, onNodeClick }) => {
                                 className="step-node-container"
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 whileInView={{ opacity: 1, scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.1 }}
+                                viewport={{ once: true, amount: "some" }}
+                                transition={{ delay: Math.min(index * 0.05, 0.3) }}
                                 whileHover={{ scale: 1.15 }}
                                 whileTap={{ scale: 0.95 }}
                             >
@@ -88,8 +88,8 @@ const PDFLearningPath = ({ data, pdfFilename, onNodeClick }) => {
                                 className="step-content-card"
                                 initial={{ opacity: 0, x: isEven ? 50 : -50 }}
                                 whileInView={{ opacity: 1, x: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.1 + 0.2 }}
+                                viewport={{ once: true, amount: "some" }}
+                                transition={{ delay: Math.min((index * 0.05) + 0.1, 0.4) }}
                             >
                                 <h3 className="step-title">{node.label}</h3>
                                 <p className="step-description">{node.description}</p>

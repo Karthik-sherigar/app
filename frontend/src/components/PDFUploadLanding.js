@@ -8,7 +8,11 @@ const PDFUploadLanding = ({ onUpload, loading }) => {
     const [isHovered, setIsHovered] = useState(false);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        accept: { 'application/pdf': ['.pdf'] },
+        accept: { 
+            'application/pdf': ['.pdf'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx']
+        },
         maxFiles: 1,
         onDrop: (files) => {
             if (files.length > 0) {
@@ -43,12 +47,12 @@ const PDFUploadLanding = ({ onUpload, loading }) => {
                 </div>
 
                 <h1 className="pdf-landing-title">
-                    Transform PDFs into <br/>
+                    Transform Documents into <br/>
                     <span className="text-gradient">Interactive Knowledge</span>
                 </h1>
                 
                 <p className="pdf-landing-subtitle">
-                    Upload your syllabus, research paper, or textbook. Our AI will instantly map its concepts, generate a learning path, and become your personal tutor.
+                    Upload your syllabus, research paper, presentation, or doc. Our AI will instantly map its concepts, generate a learning path, and become your personal tutor.
                 </p>
 
                 <div 
@@ -97,7 +101,7 @@ const PDFUploadLanding = ({ onUpload, loading }) => {
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -10 }}
                                     >
-                                        Drop your PDF artifact here
+                                        Drop your PDF, DOCX, or PPTX here
                                     </motion.h3>
                                 )}
                             </AnimatePresence>
@@ -114,7 +118,7 @@ const PDFUploadLanding = ({ onUpload, loading }) => {
                         </div>
 
                         <div className="file-constraints">
-                            <span className="constraint-pill">PDF ONLY</span>
+                            <span className="constraint-pill">PDF, DOCX, PPTX</span>
                             <span className="constraint-pill">UP TO 20MB</span>
                         </div>
                     </div>

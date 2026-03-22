@@ -69,8 +69,10 @@ Return ONLY valid JSON in this exact format:
   }}
 }}
 Types: Concept, Prerequisite, Application, Component
-CRITICAL: Use UNIQUE, concept-based string IDs (e.g., "neural_networks_intro") instead of simple integers like "1" or "2". 
-CRITICAL: Create a TREE structure, NOT a linear chain. Return ONLY valid JSON."""
+Return ONLY valid JSON in this exact format. 
+CRITICAL: ENSURE A STRICT TREE STRUCTURE. NO NODE SHOULD HAVE MULTIPLE PARENTS. IF A CONCEPT IS SHARED, CREATE A DUPLICATE NODE OR MAP IT TO THE MOST RELEVANT BRANCH.
+CRITICAL: BRANCH THE ROOT INTO 2-4 DISTINCT SUB-TOPICS FIRST TO ENSURE A BALANCED LAYOUT.
+"""
         visual_prompt = f"""Generate a high-quality visual palette for a journey about: "{request.query}"
 Provide a list of 10 unique, artistic keywords representing concepts in this field.
 Return ONLY JSON: {{"visual_prompts": ["cybernetic neural network", "glowing neon circuits", ...]}}"""
@@ -461,69 +463,83 @@ async def ask_node(request: AskNodeRequest):
 @app.post("/api/deep-dive")
 async def deep_dive(request: DeepDiveRequest):
     try:
-        prompt = f"""You are a master professor writing a DEFINITIVE TEXTBOOK on the subject: "{request.nodeLabel}".
+        prompt = f"""You are a university-level educational content generator writing a DEFINITIVE TEXTBOOK on the subject: "{request.nodeLabel}".
 {f"CRITICAL DOMAIN CONTEXT: This concept must be explained strictly within the domain of: {request.context}" if request.context else ""}
 
-STRICT RULES (MUST FOLLOW EXACTLY):
-1. CATEGORY: Analyze the topic and context. Pick the MOST RELEVANT category from: COMP_SCI, SCIENCE, HUMANITIES, MEDICAL, or GENERAL. (e.g., World War 2 must be HUMANITIES, Biology must be SCIENCE).
-2. OVERVIEW: Must be a highly detailed, textbook-level explanation of the topic (at least 600-800 words). Break it down thoroughly. Use multiple paragraphs separated by \\n\\n.
-3. MODULE CONTENT: For 'steps' or 'derivation' types, write EACH step as a NUMBERED item on its OWN LINE using \\n. EACH step must contain an exhaustive, highly detailed paragraph of information (at least 150 words per step). Do NOT just output short sentences, it must feel like reading an encyclopedic textbook.
-4. imagePrompt: A single descriptive sentence for an academic scientific, technological, or historical diagram. Ensure it describes a professional textbook visualization (e.g., flat, clean, structural) and NOT abstract or futuristic AI art. Tell the prompt to strictly avoid generating text/words inside the image.
-5. ALL values must be plain strings. Zero nested JSON objects as field values.
+FIELD 1: CATEGORY - Pick one: COMP_SCI, SCIENCE, MEDICAL, HUMANITIES, GENERAL.
 
-Return ONLY this valid JSON:
+FIELD 2: OVERVIEW - 600-1000 words. formal academic prose. NO bullets. Cover definition, principles, and real-world relevance.
+
+FIELD 3: MODULE CONTENT (dynamicModules)
+- steps/derivation: Numbered items, detailed paragraphs (50-70 words per step).
+- concept: 4-6 separated concept blocks.
+
+- LABELS: AVOID TEXT LABELS. Focus on symbolic representation and structural clarity.
+- CONCEPTUAL FOCUS: Ensure the diagram is an accurate schematic for {request.nodeLabel}.
+- STYLE: Stark White Background, HEAVY WEIGHTED BLACK OUTLINES. No gradients or shadows.
+- CRITICAL: DO NOT include alpha-numeric characters if possible, as they will be garbled. Focus on the geometry.
+
+OUTPUT FORMAT: Return ONLY a valid JSON object.
 {{
   "title": "{request.nodeLabel}",
-  "category": "PICKED_CATEGORY",
-  "overview": "Introduction paragraph here.\\n\\nSection Title\\nDetailed explanation...\\n\\nSignificance\\nWhy this matters...",
-  "imagePrompt": "A detailed academic diagram for {request.nodeLabel}.",
-  "conceptGraph": [{{ "label": "Related Concept", "relation": "relationship type" }}],
+  "category": "COMP_SCI",
+  "overview": "A detailed 300-400 word academic explanation of {request.nodeLabel}. This should cover the core principles, historical context, and modern applications in a formal textbook style.",
+  "imagePrompt": "A professional 2D diagram of {request.nodeLabel} with bold black outlines and clear labels on a white background. [TEXT DESCRIPTION ONLY. NO JSON. NO COORDINATES.]",
+  "conceptGraph": [{{ "label": "Foundational Concept", "relation": "supports" }}],
   "dynamicModules": [
-    {{ "type": "derivation", "title": "Inner Workings / Timeline", "content": "1. Step one\\n2. Step two" }},
-    {{ "type": "list", "title": "Key Factors / Applications", "content": "1. Item one\\n2. Item two" }}
+    {{ "type": "derivation", "title": "Core Mechanism", "content": "1. First step of the process explained clearly.\\n2. Second critical step with technical detail." }}
   ],
-  "aiTutorContext": "Background info for AI expert...",
-  "knowledgeChallenge": [{{ "question": "A test question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }}],
-  "proactivePaths": ["Next topic 1", "Next topic 2"],
-  "quickTips": ["Insight 1", "Insight 2"]
-}}
-"""
-        response_text = await generate_with_fallback('gemini-2.0-flash', prompt, json_mode=True)
-        result = extract_json(response_text)
+  "aiTutorContext": "Brief educational context for the AI tutor to guide the student.",
+  "knowledgeChallenge": [{{ "question": "What is the primary function of {request.nodeLabel}?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }}],
+  "proactivePaths": ["Related Topic A", "Related Topic B"],
+  "quickTips": ["Did you know that {request.nodeLabel} is crucial for...", "Always remember that..."]
+}}"""
+
+        def is_placeholder(data):
+            placeholders = ["Next topic 1", "Next topic 2", "Introduction paragraph here", "A test question?", "Step one", "PICKED_CATEGORY"]
+            for p in placeholders:
+                if p in str(data): return True
+            if len(data.get('overview', '')) < 100: return True
+            return False
+
+        async def get_response():
+            res_text = None
+            try:
+                res_text = await generate_with_groq(prompt, json_mode=True)
+            except Exception as e:
+                logging.warning(f"Groq deep_dive failed: {e}")
+            if not res_text:
+                res_text = await generate_with_fallback('gemini-2.0-flash', prompt, json_mode=True)
+            return extract_json(res_text)
+
+        result = await get_response()
         
-        # Normalize: ensure all fields are plain strings so frontend never crashes
+        if is_placeholder(result):
+            logging.info("Placeholder data detected, retrying deep_dive...")
+            result = await get_response()
+        
         def to_str(val):
-            if val is None:
-                return ''
+            if val is None: return ''
             if isinstance(val, str):
-                # If the string itself looks like a JSON object, try to flatten it
                 stripped = val.strip()
-                if (stripped.startswith('{') and stripped.endswith('}')) or \
-                   (stripped.startswith('[') and stripped.endswith(']')):
+                if (stripped.startswith('{') and stripped.endswith('}')) or (stripped.startswith('[') and stripped.endswith(']')):
                     try:
                         parsed = json.loads(stripped)
                         return to_str(parsed)
-                    except Exception:
-                        pass
+                    except: pass
                 return val
             if isinstance(val, list):
                 parts = []
-                for i, item in enumerate(val, 1):
-                    if isinstance(item, dict):
-                        parts.append('\n'.join(f"{k}: {v}" for k, v in item.items()))
-                    else:
-                        parts.append(str(item))
+                for item in val:
+                    if isinstance(item, dict): parts.append('\n'.join(f"{k}: {v}" for k, v in item.items()))
+                    else: parts.append(str(item))
                 return '\n'.join(parts)
-            if isinstance(val, dict):
-                return '\n\n'.join(f"{k}\n{v}" for k, v in val.items())
+            if isinstance(val, dict): return '\n\n'.join(f"{k}\n{v}" for k, v in val.items())
             return str(val)
 
         result['overview'] = to_str(result.get('overview', ''))
         result['imagePrompt'] = to_str(result.get('imagePrompt', ''))
         result['aiTutorContext'] = to_str(result.get('aiTutorContext', ''))
-
-        for mod in result.get('dynamicModules', []):
-            mod['content'] = to_str(mod.get('content', ''))
 
         return result
     except Exception as e:
@@ -540,4 +556,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8011)

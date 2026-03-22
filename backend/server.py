@@ -3,13 +3,19 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+import asyncio
 import logging
 import os
 import json
 from typing import List
+import urllib.parse
+from dotenv import load_dotenv
+import shared
 from shared import (
-    session_service, neo4j_service, HistoryItem
+    session_service, neo4j_service, HistoryItem, generate_image_with_gemini
 )
+# Explicitly load .env from the same directory as this file
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from auth_routes import auth_router
 
 app = FastAPI()
@@ -25,12 +31,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure static directory exists
+os.makedirs("static/images", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Sub-server configurations
-QUERY_SERVER_URL = os.environ.get("QUERY_SERVER_URL", "http://localhost:8001")
-PDF_SERVER_URL = os.environ.get("PDF_SERVER_URL", "http://localhost:8002")
-PROGRAMMING_SERVER_URL = os.environ.get("PROGRAMMING_SERVER_URL", "http://localhost:8003")
+QUERY_SERVER_URL = os.environ.get("QUERY_SERVER_URL", "http://localhost:8011")
+PDF_SERVER_URL = os.environ.get("PDF_SERVER_URL", "http://localhost:8012")
+PROGRAMMING_SERVER_URL = os.environ.get("PROGRAMMING_SERVER_URL", "http://localhost:8013")
 
 client = httpx.AsyncClient()
+
+# Task tracking for concurrent image generations to avoid duplicate work and costs
+active_image_tasks = {}
 
 @app.post("/api/generate-graph")
 async def generate_graph_proxy(request: Request):
@@ -268,6 +281,17 @@ async def deep_dive_proxy(request: Request):
         if node_id and response.status_code == 200:
             session_service.save_deep_dive(cache_key, json.dumps(data), mode=mode)
             
+            # OPTIMIZATION: Kick off image generation in background if imagePrompt is present
+            image_prompt = data.get("imagePrompt")
+            category = data.get("category", "GENERAL")
+            if image_prompt and not data.get("imageUrl"):
+                logging.info(f"Triggering background image pre-generation for: {node_id} (Category: {category})")
+                image_cache_key = f"{node_id}:{context}" if context else str(node_id)
+                if image_cache_key not in active_image_tasks:
+                    active_image_tasks[image_cache_key] = asyncio.create_task(
+                        generate_image_internal(image_prompt, node_id, context, mode, category)
+                    )
+            
         return data
     except Exception as e:
         logging.error(f"Proxy error (deep-dive): {e}")
@@ -275,79 +299,347 @@ async def deep_dive_proxy(request: Request):
 
 @app.post("/api/generate-image")
 async def generate_image(request: Request):
-    """Generate an image using Freepik's Mystic AI API with caching"""
-    import asyncio
+    """Generate an IEEE textbook-style image using Freepik's Mystic AI"""
     try:
         body = await request.json()
-        prompt = body.get("prompt", "")
+        image_prompt = body.get("prompt", "")
         node_id = body.get("nodeId")
         context = body.get("context", "")
-        
-        if not prompt:
-            raise HTTPException(status_code=400, detail="Prompt is required")
-
-        # Extract mode from headers
+        refresh = body.get("refresh", False)
         mode = request.headers.get("x-mode", "query")
+        cache_key = f"{node_id}:{context}" if context else str(node_id)
+        category = "GENERAL"
 
-        # Create a unique cache key
-        cache_key = f"{node_id}:{context}" if context else node_id
-
-        # Check Cache
-        if node_id:
+        # 1. Check Cache First (Skip if refresh=True)
+        if node_id and not refresh:
             cached = session_service.get_deep_dive(cache_key, mode=mode)
             if cached:
                 cached_data = json.loads(cached.data)
-                # Serve base64 image or old pollinations url
-                if cached_data.get("imageUrl") and ("base64," in cached_data["imageUrl"] or "pollinations.ai" in cached_data["imageUrl"]):
-                    logging.info(f"Serving image from cache for: {cache_key} (mode={mode})")
+                category = cached_data.get("category", "GENERAL")
+                if cached_data.get("imageUrl"):
+                    logging.info(f"Serving image from cache for: {cache_key}")
                     return {"image_url": cached_data["imageUrl"]}
 
-        # Use Freepik Synchronous Text-To-Image endpoint for high speed
-        # Fallback to hardcoded key if .env is missing it
-        freepik_key = os.environ.get("FREEPIK_API_KEY", "FPSX9e484a8f9e1bff7530a4c8249db38398")
-        headers = {
-            "x-freepik-api-key": freepik_key,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
+        # 2. Check if a background task is already running for this image (Skip if refresh=True)
+        if cache_key in active_image_tasks and not refresh:
+            logging.info(f"Joining active image generation task for: {cache_key}")
+            try:
+                # Wait for the existing task to complete
+                image_url = await active_image_tasks[cache_key]
+                if image_url:
+                    return {"image_url": image_url}
+            except Exception as e:
+                logging.warning(f"Joined task failed for {cache_key}: {e}")
+                # Fall through to start a new attempt if the joined task failed
+
+        # 3. Start New Generation
+        if not image_prompt and node_id:
+            image_prompt = f"Technical diagram of {node_id.replace('_', ' ')}"
         
-        # Adding constraints to enforce clean, academic, non-AI aesthetics while blocking text
-        payload = {
-            "prompt": f"{prompt}. Flat vector illustration style, clean academic diagram, white background, university textbook infographic aesthetic, strictly professional visualization, clear structure. ABSOLUTELY NO text, NO words, NO letters, NO numbers, NO labels",
-            "negative_prompt": "cyberpunk, neon, glowing, 3d render, cinematic lighting, dark background, text, words, letters, typography, fonts, watermark, labels, alien language, gibberish, abstract art",
-        }
+        if not image_prompt:
+            raise HTTPException(status_code=400, detail="Prompt is required")
 
-        image_url = None
-        logging.info(f"Creating Synchronous Freepik task for: {prompt}")
-        resp = await client.post("https://api.freepik.com/v1/ai/text-to-image", headers=headers, json=payload, timeout=25.0)
-
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("data") and len(data["data"]) > 0:
-                base64_str = data["data"][0].get("base64")
-                if base64_str:
-                    image_url = f"data:image/jpeg;base64,{base64_str}"
+        # Create and track the task
+        task = asyncio.create_task(generate_image_internal(image_prompt, node_id, context, mode, category))
+        active_image_tasks[cache_key] = task
         
-        # If Freepik failed or timed out, fallback to an empty string silently or throw
-        if not image_url:
-            logging.error(f"Freepik Sync Error: {resp.status_code} - {resp.text}")
-            raise HTTPException(status_code=502, detail="Image generation failed")
-
-        # Update cache with imageUrl (sharing same mode logic)
-        if node_id:
-            cached = session_service.get_deep_dive(cache_key, mode=mode)
-            if cached:
-                cached_data = json.loads(cached.data)
-                cached_data["imageUrl"] = image_url
-                session_service.save_deep_dive(cache_key, json.dumps(cached_data), mode=mode)
-
-        return {"image_url": image_url}
+        try:
+            image_url = await task
+            return {"image_url": image_url}
+        finally:
+            # Clean up task reference
+            if active_image_tasks.get(cache_key) == task:
+                del active_image_tasks[cache_key]
 
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Image generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+async def search_wikipedia_image(topic: str) -> str:
+    """Search Wikipedia using full-text search to find a real educational image. Free, no key needed."""
+    try:
+        headers = {
+            "User-Agent": "EyePhish-EduApp/1.0 (educational; contact: admin@eyephish.com)",
+            "Accept": "application/json"
+        }
+        async with httpx.AsyncClient(timeout=8.0, headers=headers) as wclient:
+            # Step 1: Use Wikipedia full-text search to find the closest matching article
+            search_url = (
+                f"https://en.wikipedia.org/w/api.php?action=query&list=search"
+                f"&srsearch={urllib.parse.quote(topic)}&format=json&srlimit=1&srprop="
+            )
+            search_resp = await wclient.get(search_url)
+            if search_resp.status_code != 200:
+                return None
+
+            results = search_resp.json().get("query", {}).get("search", [])
+            if not results:
+                logging.info(f"No Wikipedia search results for '{topic}'")
+                return None
+
+            best_title = results[0].get("title", "")
+            logging.info(f"Wikipedia best match for '{topic}': '{best_title}'")
+            encoded_title = urllib.parse.quote(best_title)
+
+            # Step 2: Get image for the matched article via Summary API
+            summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded_title}"
+            resp = await wclient.get(summary_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                img = data.get("originalimage", {}).get("source") or data.get("thumbnail", {}).get("source")
+                if img:
+                    logging.info(f"Wikipedia image found for '{best_title}': {img}")
+                    return img
+
+            # Step 3: Fallback to Page Images API
+            pageimg_url = (
+                f"https://en.wikipedia.org/w/api.php?action=query"
+                f"&titles={encoded_title}&prop=pageimages&format=json&pithumbsize=800"
+            )
+            resp2 = await wclient.get(pageimg_url)
+            if resp2.status_code == 200:
+                pages = resp2.json().get("query", {}).get("pages", {})
+                for page in pages.values():
+                    thumb = page.get("thumbnail", {}).get("source")
+                    if thumb:
+                        logging.info(f"Wikipedia page image for '{best_title}': {thumb}")
+                        return thumb
+    except Exception as e:
+        logging.warning(f"Wikipedia image search failed for '{topic}': {e}")
+    return None
+
+
+async def search_serper_image(topic: str) -> str:
+    """Search Google Images via Serper API for a real educational diagram. Fast, high quality."""
+    try:
+        serper_key = os.environ.get("SERPER_API_KEY")
+        if not serper_key:
+            return None
+
+        def upgrade_wikimedia_url(url: str) -> str:
+            """Upgrade Wikimedia thumbnail URLs to full-size (e.g. 250px -> 1200px or original)"""
+            import re
+            # Pattern: /thumb/X/XX/FILENAME.EXT/NNNpx-FILENAME.EXT
+            match = re.match(r"(https://upload\.wikimedia\.org/wikipedia/\w+/)thumb/(.+?)/\d+px-(.+)$", url)
+            if match:
+                base = match.group(1)
+                path = match.group(2)
+                # Return direct file URL (no thumb, no size restriction)
+                return f"{base}{path}"
+            return url
+
+        headers = {
+            "X-API-KEY": serper_key,
+            "Content-Type": "application/json"
+        }
+        search_query = f"{topic} diagram schematic"
+        payload = {
+            "q": search_query,
+            "num": 10,  # More results = better chance of finding quality image
+            "gl": "us",
+            "hl": "en"
+        }
+
+        async with httpx.AsyncClient(timeout=8.0) as sclient:
+            resp = await sclient.post(
+                "https://google.serper.dev/images",
+                headers=headers,
+                json=payload
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                images = data.get("images", [])
+                preferred_domains = ["wikipedia.org", "wikimedia.org", ".edu", "britannica.com", "researchgate.net"]
+
+                # Pass 1: Preferred educational domains + minimum size
+                for img_data in images:
+                    img_url = img_data.get("imageUrl", "")
+                    source = img_data.get("link", "")
+                    width = img_data.get("imageWidth", 0) or 0
+                    height = img_data.get("imageHeight", 0) or 0
+                    is_preferred = any(domain in source for domain in preferred_domains)
+                    is_large_enough = width >= 400 or height >= 300
+                    if is_preferred and img_url and is_large_enough:
+                        final_url = upgrade_wikimedia_url(img_url)
+                        logging.info(f"Serper HQ image ({width}x{height}): {final_url}")
+                        return final_url
+
+                # Pass 2: Any preferred domain (even if size unknown)
+                for img_data in images:
+                    img_url = img_data.get("imageUrl", "")
+                    source = img_data.get("link", "")
+                    if any(domain in source for domain in preferred_domains) and img_url:
+                        final_url = upgrade_wikimedia_url(img_url)
+                        logging.info(f"Serper educational image: {final_url}")
+                        return final_url
+
+                # Pass 3: Fallback — first result with adequate size
+                for img_data in images:
+                    img_url = img_data.get("imageUrl", "")
+                    width = img_data.get("imageWidth", 0) or 0
+                    if img_url and width >= 400:
+                        logging.info(f"Serper fallback image ({width}px): {img_url}")
+                        return img_url
+            else:
+                logging.warning(f"Serper API returned {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        logging.warning(f"Serper image search failed for '{topic}': {e}")
+    return None
+
+
+async def generate_image_internal(image_prompt: str, node_id: str, context: str, mode: str, category: str = "GENERAL"):
+    """Internal helper for image generation with cache population and task tracking compatibility"""
+    if not isinstance(image_prompt, str):
+        if isinstance(image_prompt, dict):
+            image_prompt = image_prompt.get("description", str(image_prompt))
+        else:
+            image_prompt = str(image_prompt)
+
+    cache_key = f"{node_id}:{context}" if context else str(node_id)
+    image_url = None
+    
+    try:
+        # MINIMALIST ACADEMIC STYLE - STRICTLY NO GARBLED TEXT
+        ctx_str = f" in the domain of {context}" if context else ""
+        if category in ["COMP_SCI", "SCIENCE"]:
+            tech_prefix = (
+                f"A high-clarity University Textbook diagram{ctx_str}. "
+                "Technical schematic with heavy weighted black outlines and bold structural strokes. "
+                "Clean 2D vector style on a stark white background. "
+                "Visualization of: "
+            )
+            tech_suffix = (
+                ". CRITICAL: Strictly NO text labels, NO garbled letters, and NO symbols. "
+                "Focus entirely on structural clarity and schematic accuracy. "
+                "High-contrast black ink on white background, no gradients, patent drawing style."
+            )
+        else:
+            # Humanities / Medical / General: Use simplified conceptual diagram style
+            tech_prefix = (
+                f"A professional formal University Textbook illustration{ctx_str}. "
+                "Bold high-contrast diagram with thick structural strokes. "
+                "Minimalist technical graphic on a solid stark white background. "
+                "Clear visualization of: "
+            )
+            tech_suffix = (
+                ". CRITICAL: Do NOT include any text or alphabet characters in the image. "
+                "Ensure maximum conceptual relevance through visual elements alone. "
+                "Stark white background, heavy weighted black lines, textbook simplicity."
+            )
+        
+        final_prompt = f"{tech_prefix} {image_prompt} {tech_suffix}"
+        logging.info(f"--- IMAGE GENERATION v4.1 START [Node: {node_id}] ---")
+
+        # Priority 1: Wikipedia Real Image Search (instant, no garbled text)
+        # Build smart search: "document structure mongodb" from node_id + context
+        clean_node = str(node_id).replace("_slug", "").replace("_", " ")
+        ctx_subject = ""
+        if context:
+            ctx_words = context.lower().replace("in the context of the study of", "").replace("explain", "").strip().split()
+            ctx_subject = ctx_words[-1] if ctx_words else ""
+        wiki_search_term = f"{clean_node} {ctx_subject}".strip()
+        logging.info(f"Priority 1: Wikipedia search for '{wiki_search_term}'")
+        wiki_url = await search_wikipedia_image(wiki_search_term)
+        if wiki_url:
+            session_service.cache_image_url(cache_key, wiki_url)
+            return wiki_url
+
+        # Priority 2: Serper Google Image Search (real web images)
+        logging.info(f"Priority 2: Serper Google Image search for '{wiki_search_term}'")
+        serper_url = await search_serper_image(wiki_search_term)
+        if serper_url:
+            session_service.cache_image_url(cache_key, serper_url)
+            return serper_url
+        else:
+            logging.info(f"No Serper image found, falling back to Freepik AI generation")
+
+        api_key = os.environ.get("FREEPIK_API_KEY")
+        if api_key:
+            try:
+                logging.info(f"Priority 3: Attempting Freepik Mystic for: {node_id}")
+                async with httpx.AsyncClient(timeout=45.0) as freepik_client:
+                    create_url = "https://api.freepik.com/v1/ai/mystic"
+                    headers = {
+                        "x-freepik-api-key": api_key,
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    }
+                    create_resp = await freepik_client.post(
+                        create_url,
+                        headers=headers,
+                        json={
+                            "prompt": final_prompt,
+                            "aspect_ratio": "widescreen_16_9",
+                            "guidance_scale": 5
+                        }
+                    )
+                    if create_resp.status_code == 200:
+                        data = create_resp.json()
+                        # Some versions use 'task_id', others use 'id'
+                        task_id = data.get("data", {}).get("task_id") or data.get("data", {}).get("id")
+                        if task_id:
+                            logging.info(f"Freepik Task Created: {task_id}")
+                            # Poll for result (up to 80 seconds)
+                            for attempt in range(40):
+                                await asyncio.sleep(2)
+                                status_resp = await freepik_client.get(f"https://api.freepik.com/v1/ai/mystic/{task_id}", headers=headers)
+                                if status_resp.status_code == 200:
+                                    status_data = status_resp.json()
+                                    status = status_data.get("data", {}).get("status")
+                                    logging.info(f"Freepik Poll {attempt+1}: {status}")
+                                    if status == "COMPLETED":
+                                        # Log full response to debug URL extraction
+                                        data_obj = status_data.get("data", {})
+                                        logging.info(f"Freepik COMPLETED raw: {json.dumps(data_obj)[:500]}")
+                                        # Try multiple possible URL locations in Freepik API response
+                                        image_url = (
+                                            data_obj.get("result", {}).get("url") or
+                                            data_obj.get("result", {}).get("image_url") or
+                                            (data_obj.get("generated") or [None])[0] or
+                                            ((data_obj.get("images") or [{}])[0]).get("url") or
+                                            data_obj.get("url") or
+                                            data_obj.get("image_url")
+                                        )
+                                        if image_url:
+                                            logging.info(f"Freepik SUCCESS: {image_url}")
+                                            session_service.cache_image_url(cache_key, image_url)
+                                            return image_url
+                                        else:
+                                            logging.error("Freepik COMPLETED but no URL found, falling back")
+                                            break
+            except Exception as e:
+                logging.warning(f"Freepik Priority 1 failed: {e}")
+
+        # Priority 2: Gemini (Fallback)
+        try:
+            logging.info(f"Priority 2: Attempting Gemini for: {node_id}")
+            image_url = await generate_image_with_gemini(final_prompt, f"img_{node_id}_{int(asyncio.get_event_loop().time())}")
+            if image_url:
+                session_service.cache_image_url(cache_key, image_url)
+                return image_url
+        except Exception as e:
+            logging.warning(f"Gemini Priority 2 failed: {e}")
+
+        # Priority 3: Stable Pollinations (Simplified Prompt)
+        try:
+            logging.info(f"Priority 3: Attempting Pollinations for: {node_id}")
+            # Use extreme simplicity for Pollinations to avoid refusal
+            clean_node_name = str(node_id).replace("_slug", "").replace("_", " ")
+            simple_prompt = f"Technical white background scientific diagram of {clean_node_name}"
+            encoded = urllib.parse.quote(simple_prompt)
+            image_url = f"https://pollinations.ai/p/{encoded}?width=800&height=450&seed=42&nologo=true"
+            logging.info(f"Pollinations URL: {image_url}")
+            session_service.cache_image_url(cache_key, image_url)
+            return image_url
+        except Exception as e:
+            logging.error(f"Pollinations Priority 3 failed: {e}")
+
+        return None
+    except Exception as e:
+        logging.error(f"Internal image generation error: {e}")
+        return None
 
 @app.get("/api/health")
 async def health_check():

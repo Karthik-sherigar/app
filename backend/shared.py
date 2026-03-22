@@ -12,6 +12,7 @@ from google import genai
 from groq import Groq
 import cohere
 from fastapi import HTTPException
+import urllib.parse
 from services.neo4j_service import Neo4jService
 from services.session_service import SessionService
 
@@ -125,12 +126,83 @@ def get_gemini_client(key_index=None):
         api_key = api_keys[key_index % len(api_keys)]
     else:
         api_key = api_keys[current_api_key_index % len(api_keys)]
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options={'api_version': 'v1beta'})
 
 def rotate_api_key():
     global current_api_key_index
     current_api_key_index = (current_api_key_index + 1) % len(api_keys)
     return current_api_key_index
+
+async def generate_image_with_gemini(prompt: str, filename: str):
+    """Generates an image using Gemini Imagen 4 Fast using the 3rd key if available"""
+    try:
+        # Use the 3rd key (index 2) or last key if only 1-2 exist
+        # Try multiple models and multiple keys to find one with quota
+        models_to_try = [
+            'gemini-3.1-flash-image-preview',
+            'imagen-4.0-fast-generate-001',
+            'imagen-4.0-generate-001'
+        ]
+        
+        last_error = None
+        # Try up to 3 keys
+        for key_idx in range(len(api_keys)):
+            current_client = get_gemini_client(key_idx)
+            for model_name in models_to_try:
+                try:
+                    logging.info(f"Attempting Gemini Image Gen with {model_name} (Key {key_idx})")
+                    if "imagen" in model_name:
+                         # Use generate_images (plural) for Imagen models
+                         gen_response = await current_client.aio.models.generate_images(
+                             model=model_name,
+                             prompt=prompt
+                         )
+                         image_obj = gen_response.generated_images[0].image
+                         
+                         # Success! Save and return
+                         static_dir = os.path.join(ROOT_DIR, "static", "images")
+                         os.makedirs(static_dir, exist_ok=True)
+                         image_path = os.path.join(static_dir, f"{filename}.png")
+                         image_obj.save(image_path)
+                         return f"/static/images/{filename}.png"
+                    else:
+                         # Use generate_content for Flash Image models
+                         gen_response = await current_client.aio.models.generate_content(
+                             model=model_name,
+                             contents=prompt
+                         )
+                         image_data = None
+                         for candidate in gen_response.candidates:
+                             if candidate.content and candidate.content.parts:
+                                 for part in candidate.content.parts:
+                                     if part.inline_data:
+                                         image_data = part.inline_data.data
+                                         break
+                             if image_data: break
+                    
+                    if image_data:
+                        # Success for content models
+                        static_dir = os.path.join(ROOT_DIR, "static", "images")
+                        os.makedirs(static_dir, exist_ok=True)
+                        image_path = os.path.join(static_dir, f"{filename}.png")
+                        with open(image_path, "wb") as f:
+                            f.write(image_data)
+                        return f"/static/images/{filename}.png"
+                except Exception as e:
+                    last_error = e
+                    logging.warning(f"Gemini {model_name} failed on key {key_idx}: {e}")
+                    continue
+        
+        # If all Gemini attempts fail, try a robust fallback URL (Pollinations)
+        # We return a URL that the frontend can use directly
+        encoded_prompt = urllib.parse.quote(prompt)
+        # Using a more stable pollinations endpoint
+        fallback_url = f"https://pollinations.ai/p/{encoded_prompt}?width=800&height=450&seed=42&nologo=true"
+        logging.info(f"All Gemini options exhausted. Using robust Pollinations fallback: {fallback_url}")
+        return fallback_url
+    except Exception as e:
+        logging.error(f"Gemini Image Gen failed: {e}")
+        raise e
 
 def initialize_models():
     global available_models
@@ -138,7 +210,7 @@ def initialize_models():
     if models_str:
         available_models = [m.strip() for m in models_str.split(',') if m.strip()]
     if not available_models:
-        available_models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
+        available_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-pro', 'gemini-3-pro-preview']
 
 def initialize_providers():
     global groq_client, cohere_client
@@ -165,19 +237,34 @@ async def generate_with_groq(prompt, json_mode=True):
     try:
         kwargs = {
             "messages": [{"role": "user", "content": prompt}],
-            "model": "llama-3.3-70b-versatile"
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        # Run synchronous Groq client in a thread pool with 45s timeout
-        completion = await asyncio.wait_for(
-            asyncio.to_thread(
-                groq_client.chat.completions.create,
-                **kwargs
-            ),
-            timeout=45.0
-        )
-        return completion.choices[0].message.content
+            
+        models_to_try = [
+            "llama-3.3-70b-versatile", 
+            "llama-3.1-8b-instant", 
+            "gemma2-9b-it",
+            "qwen-2.5-32b",
+            "deepseek-r1-distill-llama-70b"
+        ]
+        last_e = None
+        for model in models_to_try:
+            try:
+                kwargs["model"] = model
+                # Run synchronous Groq client in a thread pool with 20s timeout
+                completion = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        groq_client.chat.completions.create,
+                        **kwargs
+                    ),
+                    timeout=20.0
+                )
+                return completion.choices[0].message.content
+            except Exception as e:
+                last_e = e
+                logging.warning(f"Groq model {model} failed: {e}. Trying next Groq model.")
+        raise last_e
     except Exception as e:
         logging.error(f"Groq generation failed: {e}")
         raise e
@@ -221,7 +308,7 @@ async def _gemini_loop(preferred_model, prompt, forced_key_index=None):
                         model=model,
                         contents=prompt
                     ),
-                    timeout=60.0 # 60s per Gemini attempt
+                    timeout=15.0 # Reduce from 60s per key to 15s
                 )
                 return response.text
             except asyncio.TimeoutError:
@@ -238,12 +325,16 @@ async def _generate_with_gemini_internal(preferred_model, prompt, forced_key_ind
     try:
         return await asyncio.wait_for(
             _gemini_loop(preferred_model, prompt, forced_key_index),
-            timeout=90.0
+            timeout=30.0 # Reduce from 90s to 30s total Gemini wait
         )
     except asyncio.TimeoutError:
         raise Exception("Gemini overall timeout exceeded. Failing over to next provider.")
 
 async def generate_with_fallback(preferred_model, prompt, json_mode=False, forced_key_index: Optional[int] = None):
+    gemini_err = None
+    groq_err = None
+    cohere_err = None
+
     try:
         # If we need JSON, ensure prompt suggests it for safety when falling back
         if json_mode and "json" not in prompt.lower():
@@ -251,16 +342,24 @@ async def generate_with_fallback(preferred_model, prompt, json_mode=False, force
             
         return await _generate_with_gemini_internal(preferred_model, prompt, forced_key_index=forced_key_index)
     except Exception as e:
+        gemini_err = e
         logging.warning(f"Gemini failed: {e}. Trying Groq.")
     try:
         if groq_client: return await generate_with_groq(prompt, json_mode=json_mode)
     except Exception as e:
+        groq_err = e
         logging.warning(f"Groq failed: {e}. Trying Cohere.")
     try:
         if cohere_client: return await generate_with_cohere(prompt, json_mode=json_mode)
     except Exception as e:
+        cohere_err = e
         logging.error(f"Cohere failed: {e}.")
-    raise HTTPException(status_code=503, detail="All AI providers are unavailable.")
+        
+    error_summary = f"Gemini: {getattr(gemini_err, 'message', str(gemini_err))}"
+    if groq_err: error_summary += f" | Groq: {getattr(groq_err, 'message', str(groq_err))}"
+    if cohere_err: error_summary += f" | Cohere: {getattr(cohere_err, 'message', str(cohere_err))}"
+    
+    raise HTTPException(status_code=503, detail=f"All AI providers failed: {error_summary}")
 
 def extract_json(text):
     text = text.strip()

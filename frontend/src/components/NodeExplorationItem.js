@@ -213,33 +213,30 @@ const NodeExplorationItem = ({ data, onUpdate }) => {
                             }));
                         return (
                             <motion.div key="images" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="node-explore-images" >
-                                {imgs.map((img, i) => (
-                                    <motion.a 
-                                        key={i} 
-                                        href={img.url || img.googleSearchUrl || `https://www.google.com/search?tbm=isch&q=${encodeURIComponent((data.nodeLabel || '') + ' ' + img.title)}`}
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="modern-image-card"
-                                        whileHover={{ y: -4 }}
-                                    >
-                                        <div className="modern-image-thumb">
-                                            {img.url && !img.url.includes('google.com') ? (
-                                                <img src={img.url} alt={img.title} className="modern-image-real" />
-                                            ) : (
+                                {imgs.map((img, i) => {
+                                    const searchUrl = img.googleSearchUrl || `https://www.google.com/search?tbm=isch&q=${encodeURIComponent((data.title || data.nodeLabel || '') + ' ' + (img.title || ''))}`;
+                                    return (
+                                        <motion.a
+                                            key={i}
+                                            href={searchUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="modern-image-card"
+                                            whileHover={{ y: -4 }}
+                                        >
+                                            <div className="modern-image-thumb">
                                                 <div className="modern-image-placeholder">
                                                     <div className="mip-icon-ring"><Search size={24} /></div>
-                                                    <div className="mip-text">
-                                                        <span>Search Gallery</span>
-                                                    </div>
+                                                    <div className="mip-text"><span>Search Gallery</span></div>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="modern-image-info">
-                                            <span className="modern-image-title">{img.title || "Graphic Example"}</span>
-                                            {img.description && <p className="modern-image-desc">{img.description}</p>}
-                                        </div>
-                                    </motion.a>
-                                ))}
+                                            </div>
+                                            <div className="modern-image-info">
+                                                <span className="modern-image-title">{img.title || 'Graphic Example'}</span>
+                                                {img.description && <p className="modern-image-desc">{img.description}</p>}
+                                            </div>
+                                        </motion.a>
+                                    );
+                                })}
                                 {imgs.length === 0 && (
                                     <p className="node-explore-empty">No images available.</p>
                                 )}

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Network, Search, BrainCircuit, Shield, Chrome } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Network, Search, BrainCircuit, Shield, Chrome, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import './LoginPage.css';
 
 const GOOGLE_CLIENT_ID = "171238226547-gq0n9m4ro79nq5p0nor33r9d506o8b7s.apps.googleusercontent.com";
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8015";
 const API = `${BACKEND_URL}/api/auth`;
 
 const LoginContent = ({ onLogin }) => {
@@ -17,6 +17,11 @@ const LoginContent = ({ onLogin }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [otpSent, setOtpSent] = useState(false);
     const [backendStatus, setBackendStatus] = useState("loading");
+    
+    // NEW STATES
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
 
     useEffect(() => {
         const checkHealth = async () => {
@@ -29,6 +34,17 @@ const LoginContent = ({ onLogin }) => {
         };
         checkHealth();
     }, []);
+
+    // OTP Timer Logic
+    useEffect(() => {
+        let interval;
+        if (resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [resendTimer]);
     
     // Form States
     const [formData, setFormData] = useState({
@@ -74,8 +90,15 @@ const LoginContent = ({ onLogin }) => {
             const res = await axios.post(`${API}/send-otp`, { email: formData.email });
             toast.success(res.data.message || "OTP sent successfully to your email!");
             setOtpSent(true);
+            setResendTimer(30); // Start 30s countdown
         } catch (error) {
-            toast.error(error.response?.data?.detail || "Failed to send OTP.");
+            const errorMsg = error.response?.data?.detail || "Failed to send OTP.";
+            toast.error(errorMsg, {
+                autoClose: 5000, // Show for longer
+            });
+            if (errorMsg.includes("exists")) {
+                toast.info("If you already have an account, try logging in instead.");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -196,9 +219,9 @@ const LoginContent = ({ onLogin }) => {
                                         type="button" 
                                         className="btn-secondary outline"
                                         onClick={handleSendOTP}
-                                        disabled={isLoading || otpSent}
+                                        disabled={isLoading || resendTimer > 0}
                                     >
-                                        {otpSent ? 'OTP Sent' : 'Send OTP'}
+                                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : (otpSent ? 'Resend OTP' : 'Send OTP')}
                                     </button>
                                 </div>
                             ) : (
@@ -232,26 +255,56 @@ const LoginContent = ({ onLogin }) => {
                             <div className="form-row">
                                 <div className="form-group half">
                                     <label>Password</label>
-                                    <input 
-                                        type="password" name="password" placeholder="••••••••" 
-                                        value={formData.password} onChange={handleChange} required 
-                                    />
+                                    <div className="input-with-icon">
+                                        <input 
+                                            type={showPassword ? "text" : "password"} 
+                                            name="password" placeholder="••••••••" 
+                                            value={formData.password} onChange={handleChange} required 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="icon-toggle"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="form-group half">
                                     <label>Confirm Password</label>
-                                    <input 
-                                        type="password" name="confirmPassword" placeholder="••••••••" 
-                                        value={formData.confirmPassword} onChange={handleChange} required 
-                                    />
+                                    <div className="input-with-icon">
+                                        <input 
+                                            type={showConfirmPassword ? "text" : "password"} 
+                                            name="confirmPassword" placeholder="••••••••" 
+                                            value={formData.confirmPassword} onChange={handleChange} required 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="icon-toggle"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        >
+                                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
                             <div className="form-group">
                                 <label>Password</label>
-                                <input 
-                                    type="password" name="password" placeholder="••••••••" 
-                                    value={formData.password} onChange={handleChange} required 
-                                />
+                                <div className="input-with-icon">
+                                    <input 
+                                        type={showPassword ? "text" : "password"} 
+                                        name="password" placeholder="••••••••" 
+                                        value={formData.password} onChange={handleChange} required 
+                                    />
+                                    <button 
+                                        type="button" 
+                                        className="icon-toggle"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -320,11 +373,11 @@ const LoginContent = ({ onLogin }) => {
                     </div>
 
                     <div className="auth-page-footer">
-                        <span>© 2024 KnowledgeGraph AI Inc.</span>
+                        <span>© 2026 KnowledgeGraph AI Inc.</span>
                         <div className="footer-links">
-                            <a href="#">Privacy</a>
-                            <a href="#">Terms</a>
-                            <a href="#">Security</a>
+                            <Link to="/privacy">Privacy</Link>
+                            <Link to="/terms">Terms</Link>
+                            <Link to="/security">Security</Link>
                         </div>
                     </div>
                 </div>

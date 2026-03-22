@@ -30,7 +30,9 @@ import {
     Brain,
     Sparkles,
     Maximize2,
-    Minimize2
+    Minimize2,
+    RefreshCcw,
+    X
 } from 'lucide-react';
 import './ExplorationPage.css';
 
@@ -179,6 +181,10 @@ const ExplorationPage = () => {
     const [selectionPos, setSelectionPos] = useState({ x: 0, y: 0 });
     const [showAskTooltip, setShowAskTooltip] = useState(false);
     const [isAiMaximized, setIsAiMaximized] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [imageRetryCount, setImageRetryCount] = useState(0);
+    const [imageReady, setImageReady] = useState(false);
+    const [loadingStatus, setLoadingStatus] = useState("Synchronizing Pedagogical Data...");
     const chatEndRef = useRef(null);
     const chatInputRef = useRef(null);
 
@@ -188,6 +194,7 @@ const ExplorationPage = () => {
             console.log("Deep Dive: Starting fetch for", nodeId);
             setLoading(true);
             setError(null);
+            setLoadingStatus("Synchronizing Pedagogical Data...");
             
             // Only show skeleton if loading takes more than 200ms
             skeletonTimer = setTimeout(() => setShowSkeleton(true), 200);
@@ -206,10 +213,33 @@ const ExplorationPage = () => {
                 }, { timeout: 100000 }); // High timeout for LLM
                 
                 console.log("Deep Dive: Received data", res.data);
+                
+                const isPlaceholder = (d) => {
+                    const p = ["Introduction paragraph here", "Next topic 1", "A test question?", "PICKED_CATEGORY"];
+                    const str = JSON.stringify(d);
+                    if (p.some(term => str.includes(term))) return true;
+                    if (!d.overview || d.overview.length < 100) return true;
+                    return false;
+                };
+
+                if (isPlaceholder(res.data) && !window._didRetryDeepDive) {
+                    console.log("Placeholder detected in frontend, retrying...");
+                    window._didRetryDeepDive = true;
+                    // Reset loading states to show the custom status
+                    setError(null);
+                    setLoadingStatus("Deepening Research (Retry 1/1)...");
+                    return fetchDeepDive();
+                }
+
                 setData(res.data);
+                window._didRetryDeepDive = false;
             } catch (err) {
                 console.error("Deep Dive: Fetch failed", err);
-                setError(err.message || "Failed to establish pedagogical connection.");
+                const msg = window._didRetryDeepDive 
+                    ? "Deep Research failed. The AI is experiencing high latency. Please try again in a moment."
+                    : (err.message || "Failed to establish pedagogical connection.");
+                setError(msg);
+                window._didRetryDeepDive = false; // Reset on error too
                 if (err.response) {
                     console.error("Deep Dive: Error status", err.response.status);
                     console.error("Deep Dive: Error data", err.response.data);
@@ -298,8 +328,36 @@ const ExplorationPage = () => {
         return () => document.removeEventListener('mouseup', handleTextSelection);
     }, [data]);
 
+    const handlePreWarm = async (topic) => {
+        if (!topic) return;
+        try {
+            const nodeId = topic.replace(/[?]/g, '').trim().replace(/\s+/g, '_').toLowerCase();
+            // Call deep-dive with is_temporary=true (or just call it normally to populate cache)
+            // We don't need the result, we just want the backend to start generating the image
+            axios.post(`${API}/deep-dive`, {
+                nodeId: nodeId,
+                nodeLabel: topic,
+                context: rootTopic ? `In the context of the study of ${rootTopic}` : '',
+                is_temporary: true 
+            }, { timeout: 5000 }).catch(() => {}); // Fire and forget, short timeout
+        } catch (e) {}
+    };
 
-    // Generate image via Freepik Mystic API whenever new data is loaded
+
+    // Handle potential stale data or cached images
+    useEffect(() => {
+        if (!imageUrl) {
+            setImageReady(false);
+            return;
+        }
+        const img = new Image();
+        img.src = imageUrl;
+        if (img.complete) {
+            console.log("Image was already in cache:", imageUrl);
+            setImageReady(true);
+        }
+    }, [imageUrl]);
+
     useEffect(() => {
         if (!data?.imagePrompt) {
             console.log("Image Gen: No imagePrompt in data", data);
@@ -321,6 +379,7 @@ const ExplorationPage = () => {
                 
                 if (!cancelled && res.data?.image_url) {
                     setImageUrl(res.data.image_url);
+                    setImageReady(false); // Reset for new image
                 }
             } catch (err) {
                 console.error('Image generation failed:', err);
@@ -335,8 +394,36 @@ const ExplorationPage = () => {
         return () => { cancelled = true; };
     }, [data, nodeId, rootTopic]);
 
-    if (loading && showSkeleton) return <SkeletonDeepDive />;
-    if (loading && !showSkeleton) return null; // Wait for the transition window
+    const handleRefreshImage = async () => {
+        if (!data?.imagePrompt || imageLoading) return;
+        
+        console.log("Image Refresh: Starting for prompt:", data.imagePrompt);
+        setImageUrl(null);
+        setImageLoading(true);
+        setImageReady(false);
+        try {
+            const res = await axios.post(`${API}/generate-image`, {
+                prompt: data.imagePrompt,
+                nodeId: data.nodeId || nodeId,
+                context: rootTopic ? `In the context of the study of ${rootTopic}` : '',
+                refresh: true
+            }, { timeout: 120000 });
+            
+            console.log("Image Refresh: Response received", res.data);
+            
+            if (res.data?.image_url) {
+                setImageUrl(res.data.image_url);
+            }
+        } catch (err) {
+            console.error('Image refresh failed:', err);
+        } finally {
+            setImageLoading(false);
+            console.log("Image Refresh: Finished loading state");
+        }
+    };
+
+    if (loading && showSkeleton && !data) return <SkeletonDeepDive />;
+    if (loading && !showSkeleton && !data) return null; // Wait for the transition window
 
     if (error) {
         return (
@@ -394,12 +481,12 @@ const ExplorationPage = () => {
                 {!data ? (
                     <div className="node-explore-loading">
                         <div className="node-explore-spinner"></div>
-                        <span>Synchronizing Pedagogical Data...</span>
+                        <span>{loadingStatus}</span>
                     </div>
                 ) : (
                     <>
                         <header className="dynamic-header">
-                            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y:0, opacity:1 }}>
+                            <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y:0, opacity:1 }} transition={{ duration: 0.2 }}>
                                 <h1 className="dynamic-title">{data.title}</h1>
                                 <div className="textbook-divider"></div>
                             </motion.div>
@@ -410,31 +497,78 @@ const ExplorationPage = () => {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: 0.2 }}
+                            style={{ position: 'relative', minHeight: '200px' }}
                         >
-                            {imageUrl ? (
+                            <button 
+                                className="refresh-image-btn"
+                                onClick={handleRefreshImage}
+                                disabled={imageLoading}
+                                title="Refresh Image"
+                            >
+                                <RefreshCcw size={18} className={imageLoading ? "spin" : ""} />
+                            </button>
+
+                            {imageUrl && (
                                 <img
+                                    key={`${imageUrl}-${imageRetryCount}`}
                                     src={imageUrl}
                                     alt={`Scientific Visualization: ${data.title}`}
-                                    className="viz-image"
+                                    className="visualization-img"
+                                    onLoad={() => {
+                                        console.log("Image actually loaded in DOM:", imageUrl);
+                                        setImageReady(true);
+                                    }}
+                                    onError={(e) => {
+                                        console.error("Image failed to load in DOM:", imageUrl);
+                                        setImageReady(false);
+                                        if (imageRetryCount < 15) {
+                                             setTimeout(() => {
+                                                 setImageRetryCount(prev => prev + 1);
+                                             }, 3000);
+                                        }
+                                    }}
+                                    onClick={() => setSelectedImage(imageUrl)}
                                     style={{
                                         width: '100%',
+                                        height: '100%',
                                         borderRadius: '12px',
-                                        display: 'block',
+                                        display: imageReady ? 'block' : 'none',
                                         maxHeight: '440px',
-                                        objectFit: 'cover'
+                                        objectFit: 'cover',
+                                        cursor: 'zoom-in',
+                                        transition: 'transform 0.2s'
                                     }}
                                 />
-                            ) : (
+                            )}
+                            
+                            {!imageReady && (
                                 <div className="viz-placeholder">
-                                    <Activity size={48} className="animate-pulse" style={{ color: catConfig.color }} />
-                                    <p>{imageLoading ? 'Generating visualization...' : `Scientific Visualization: ${data.title}`}</p>
-                                    <span style={{ fontSize: '12px', opacity: 0.5 }}>{data.imagePrompt}</span>
+                                    <div className="viz-scanner" style={{ background: `linear-gradient(90deg, transparent, ${catConfig.color}40, transparent)` }}></div>
+                                    <Activity size={48} style={{ color: catConfig.color }} className="viz-placeholder-icon" />
+                                    <p style={{ zIndex: 1, fontWeight: '700' }}>
+                                        {imageLoading ? 'Generating Schematic...' : imageUrl ? 'Finalizing Visualization...' : `Schematic: ${data.title}`}
+                                    </p>
+                                    {imageUrl && !imageReady && !imageLoading && (
+                                        <button 
+                                            onClick={() => setImageUrl(`${imageUrl.split('&retry=')[0]}&retry=${Date.now()}`)}
+                                            style={{ 
+                                                zIndex: 10, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', 
+                                                color: '#fff', padding: '4px 12px', borderRadius: '100px', fontSize: '11px', cursor: 'pointer',
+                                                marginTop: '8px'
+                                            }}
+                                        >
+                                            Take a while? Try Reloading
+                                        </button>
+                                    )}
+                                    <span style={{ fontSize: '12px', opacity: 0.5, zIndex: 1, maxWidth: '80%', textAlign: 'center' }}>
+                                        {data.imagePrompt?.substring(0, 100)}...
+                                    </span>
                                 </div>
                             )}
                         </motion.div>
                     )}
 
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity:1 }} transition={{ delay: 0.4 }} className="dynamic-overview">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity:1 }} transition={{ duration: 0.3 }} className="dynamic-overview">
                         {typeof data.overview === 'string'
                             ? data.overview.split('\n').filter(p => p.trim()).map((para, i) => (
                                 <p key={i}>{para}</p>
@@ -450,7 +584,7 @@ const ExplorationPage = () => {
                         {data.conceptGraph?.map((c, i) => (
                             <motion.div 
                                 key={i} 
-                                initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.1 }}
+                                initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.05 }}
                                 className="relation-bubble"
                                 onClick={() => navigate(`/explore/${c.label?.replace(/\s+/g, '_').toLowerCase()}`)}
                                 whileHover={{ scale: 1.05 }}
@@ -465,7 +599,7 @@ const ExplorationPage = () => {
                 <div className="content-grid-v2">
                     <div className="primary-content-stack">
                         {data.dynamicModules?.map((mod, i) => (
-                            <motion.div key={i} className="module-card v2" initial={{ x: -20, opacity: 0 }} animate={{ x:0, opacity: 1 }} transition={{ delay: 0.3 + i*0.1 }}>
+                            <motion.div key={i} className="module-card v2" initial={{ y: 10, opacity: 0 }} animate={{ y:0, opacity: 1 }} transition={{ delay: 0.1 + i*0.05 }}>
                                 <h2 className="module-title-dynamic">{mod.title}</h2>
                                 {mod.type === 'code' ? (
                                     <div className="code-environment">
@@ -586,11 +720,19 @@ const ExplorationPage = () => {
                         <section className="further-queries-v2">
                             <h3 className="module-tag">PROACTIVE PATHS</h3>
                             <div className="path-tags">
-                                {data.proactivePaths?.map((p, i) => (
-                                    <button key={i} className="path-btn" onClick={() => navigate(`/explore/${typeof p === 'string' ? p.replace(/[?]/g, '').trim().replace(/\s+/g, '_').toLowerCase() : i}`)}>
-                                        {String(p)} ↗
-                                    </button>
-                                ))}
+                                {data.proactivePaths?.map((p, i) => {
+                                    const topicLabel = String(p);
+                                    return (
+                                        <button 
+                                            key={i} 
+                                            className="path-btn" 
+                                            onClick={() => navigate(`/explore/${topicLabel.replace(/[?]/g, '').trim().replace(/\s+/g, '_').toLowerCase()}?topic=${encodeURIComponent(rootTopic || data.title)}`)}
+                                            onMouseEnter={() => handlePreWarm(topicLabel)}
+                                        >
+                                            {topicLabel} ↗
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </section>
                     </div>
@@ -598,6 +740,38 @@ const ExplorationPage = () => {
             </>
                 )}
             </main>
+
+            {/* Image Preview Modal */}
+            <AnimatePresence>
+                {selectedImage && (
+                    <motion.div 
+                        className="image-preview-modal"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSelectedImage(null)}
+                    >
+                        <motion.button 
+                            className="modal-close-btn"
+                            onClick={() => setSelectedImage(null)}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                        >
+                            <X size={24} />
+                        </motion.button>
+                        <motion.img 
+                            src={selectedImage} 
+                            alt="Preview"
+                            className="modal-image"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Floating Selection Tooltip */}
             <AnimatePresence>
                 {showAskTooltip && (

@@ -50,29 +50,63 @@ async def debug_pdf_text(file: UploadFile = File(...)):
 async def generate_graph_from_pdf(file: UploadFile = File(...), user_email: str = Form(None)):
     try:
         contents = await file.read()
-        try:
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
-        except Exception as e:
-            raise HTTPException(status_code=422, detail="Invalid file format. If you uploaded an image or a non-PDF file, please provide a valid text-based PDF document.")
-        
+        filename_lower = file.filename.lower()
         text_parts = []
-        # Support up to 200 pages as requested
-        for i, page in enumerate(pdf_reader.pages[:200]):
-            try:
-                extracted = page.extract_text()
-                if extracted and len(extracted.strip()) > 20: 
-                    text_parts.append(extracted)
-                else:
-                    logger.warning(f"Page {i+1}: Little text extracted ({len(extracted) if extracted else 0} chars).")
-            except Exception as e:
-                logger.error(f"Error extracting text from page {i+1}: {e}")
         
+        try:
+            if filename_lower.endswith('.docx'):
+                import docx
+                doc = docx.Document(io.BytesIO(contents))
+                for idx, para in enumerate(doc.paragraphs):
+                    if para.text.strip():
+                        page_idx = idx // 20
+                        while len(text_parts) <= page_idx:
+                            text_parts.append("")
+                        text_parts[page_idx] += para.text + "\n"
+                        
+            elif filename_lower.endswith('.pptx'):
+                import pptx
+                prs = pptx.Presentation(io.BytesIO(contents))
+                for slide in prs.slides:
+                    slide_text = []
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text") and shape.text.strip():
+                            slide_text.append(shape.text.strip())
+                        if getattr(shape, "has_table", False):
+                            for row in shape.table.rows:
+                                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                                if row_text:
+                                    slide_text.append(" | ".join(row_text))
+                    if slide_text:
+                        text_parts.append("\n".join(slide_text))
+                        
+            else:
+                try:
+                    pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
+                except Exception as e:
+                    raise HTTPException(status_code=422, detail="Invalid file format. Please upload a valid PDF, DOCX, or PPTX.")
+                
+                for i, page in enumerate(pdf_reader.pages[:200]):
+                    try:
+                        extracted = page.extract_text()
+                        if extracted and len(extracted.strip()) > 20: 
+                            text_parts.append(extracted)
+                        else:
+                            logger.warning(f"Page {i+1}: Little text extracted.")
+                    except Exception as e:
+                        logger.error(f"Error extracting text from page {i+1}: {e}")
+        except HTTPException as he:
+            raise he
+        except Exception as gen_e:
+            logger.error(f"File parsing error: {gen_e}")
+            raise HTTPException(status_code=422, detail=f"Failed to extract text from file.")
+            
         full_text = "\n".join(text_parts)
         if len(full_text.strip()) < 100:
-            logger.error(f"EXTRACTION WARNING: Only {len(full_text)} chars extracted from {len(pdf_reader.pages)} pages.")
-            # If we have images but no text, this PDF is likely scanned
-            if len(pdf_reader.pages) > 0 and not text_parts:
-                 raise HTTPException(status_code=422, detail="This PDF appears to be scanned or contains only images. Please use an OCR-ready PDF or search for the topic in Query Mode.")
+            if filename_lower.endswith('.pdf'):
+                raise HTTPException(status_code=422, detail="This PDF appears to be scanned or contains only images. Please use an OCR-ready PDF.")
+            else:
+                raise HTTPException(status_code=422, detail="Could not extract enough text from the document.")
 
         num_parts = len(text_parts)
         logger.info(f"Successfully extracted text from {num_parts} pages. Total chars: {len(full_text)}")
@@ -322,12 +356,12 @@ async def pdf_deep_dive(req: PDFDeepDiveRequest):
             else:
                 logger.warning(f"Cached deep dive for {cache_key} is empty. Re-generating...")
 
-        prompt = f"""You are an elite academic professor. Your goal is to provide a rich, detailed, textbook-style deep dive for the topic: "{req.nodeLabel}" based on the document provided.
+        prompt = f"""You are an elite academic professor. Your goal is to provide a rich, detailed, textbook-style deep dive for the topic: "{req.nodeLabel}" based STRICTLY on the document provided.
 
 CORE DIRECTIVES:
-1. SYNTHESIS: Use the PDF text provided as your primary source. If specific details are sparse, synthesize based on broader context.
-2. ORGANIZATION: Break the analysis into at least 4-6 distinct sections.
-3. QUALITY: Each section must have at least 200 words of high-quality technical content.
+1. SYNTHESIS: Use ONLY the provided PDF text as your source. Do NOT use any external knowledge. If specific details are sparse, restrict your synthesis strictly to the PDF content provided. If the topic is missing, explicitly state that it is not covered in the document.
+2. ORGANIZATION: Break the analysis into at least 4-6 distinct sections IF there is enough content in the provided PDF text.
+3. QUALITY: Ensure all content is exclusively derived from the text. Each section must expand using ONLY the provided context.
 4. MATH: Use LaTeX ($...$) for inline math and ($$...$$) for display/block equations.
 
 FORMATTING RULES (STRICT):
@@ -432,9 +466,9 @@ IDENTITY RULES (HIGHEST PRIORITY):
 - If asked your name: "I'm your AI Study Partner on !"
 
 CONTENT RULES:
-1. Use ONLY the provided PDF content to answer technical questions.
-2. If the answer is NOT in the PDF text, say: "That topic isn't covered in this document, but feel free to ask me anything about what's inside!"
-3. Stay focused on the module: {req.nodeLabel}.
+1. Try to use the provided PDF content to answer the question first.
+2. If the answer or topic is NOT explicitly in the PDF text, you CAN use your external knowledge to answer, BUT you MUST explicitly state something like: "Note: This information is not from the uploaded document, but..." before providing the answer.
+3. Stay focused on the module: {req.nodeLabel} when possible.
 4. Be warm, encouraging, and academic in tone.
 
 PDF CONTENT:
