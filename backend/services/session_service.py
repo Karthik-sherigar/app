@@ -110,6 +110,23 @@ class SessionService:
             logger.error(f"Error retrieving history: {e}")
             return []
 
+    def get_query_cache(self, query: str, mode: str = "query"):
+        """
+        Retrieve the most recent history item for a specific query and mode.
+        """
+        try:
+            db = SessionLocal()
+            # Find the most recent successful match
+            item = db.query(QueryHistory).filter(
+                QueryHistory.query == query,
+                QueryHistory.mode == mode
+            ).order_by(QueryHistory.timestamp.desc()).first()
+            db.close()
+            return item
+        except Exception as e:
+            logger.error(f"Error checking query cache for '{query}': {e}")
+            return None
+
     def clear_history(self, mode: str = None, user_email: str = None):
         """
         optional: Clear history, optionally filtered by mode and user email
@@ -160,15 +177,17 @@ class SessionService:
             logger.error(f"Error deleting history item {item_id}: {e}")
             return False
 
-    def update_history_item(self, item_id: int, answer_data: str):
+    def update_history_item(self, item_id: int, answer_data: str, query: str = None):
         """
-        Update the answer data for a specific history item.
+        Update the answer data and optionally the query string for a specific history item.
         """
         try:
             db = SessionLocal()
             item = db.query(QueryHistory).filter(QueryHistory.id == item_id).first()
             if item:
                 item.answer = str(answer_data)
+                if query is not None:
+                    item.query = query
                 db.commit()
                 db.refresh(item)
                 db.close()
