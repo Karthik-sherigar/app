@@ -29,42 +29,64 @@ async def generate_graph(request: QueryRequest):
         raise HTTPException(status_code=400, detail="Invalid mode for programming server")
     
     try:
-        prompt = f"""Construct a hierarchical "Logic Tree" explaining the code flow for:
+        prompt = f"""Construct a hierarchical "Logic Tree" and "Visual Palette" explaining the code flow for:
 {request.query}
 
-STRICT VISUAL & STRUCTURAL REQUIREMENTS (MATCHING KNOWLEDGE TREE STYLE):
+STRICT VISUAL & STRUCTURAL REQUIREMENTS:
 1. **Vertical Hierarchy**: Organize nodes into multiple horizontal levels using the "depth" property. 
    - Level 0: Global entry point / script start (Root).
    - Level 1-2: Main functions or logic phases.
    - Level 3+: Internal steps or callbacks.
-2. **Branching**: For each parent node, try to generate exactly 2 distinct child paths (Binary Branching) where logical, to maintain a clean symmetrical tree growth.
+2. **Branching**: For each parent node, try to generate exactly 2 distinct child paths (Binary Branching) where logical.
 3. **Node Definition**: Return 10-15 meaningful nodes representing the system structure.
 
 JSON Response Format:
 {{
   "answer": "A detailed narration of the execution journey through this code.",
   "sections": {{
-    "overview": "High-level purpose of the code.",
+    "overview": "High-level purpose of the code (2-3 sentences).",
     "summary": "Technical architecture summary."
   }},
   "graph": {{
     "nodes": [
-      {{ "id": "main_fn", "label": "main()", "type": "Entry", "description": "Entry point", "depth": 0 }},
-      {{ "id": "proc_a", "label": "ProcessA", "type": "Component", "description": "Phase 1", "depth": 1 }}
+      {{ "id": "main_fn", "label": "main()", "type": "Entry", "description": "Entry point", "depth": 0 }}
     ],
     "edges": [
-      {{ "source": "main_fn", "target": "proc_a", "relation": "CALLS" }}
+      {{ "source": "parent", "target": "child", "relation": "CALLS" }}
     ]
-  }}
+  }},
+  "visual_prompts": ["cybernetic circuits", "logic gates", "binary rain"]
 }}
 
 Node Types: "Component", "LogicPhase", "Decision", "DataStore", "Entry".
 Relations: "CALLS", "FLOWS_TO", "CONTAINS"."""
 
-        response_text = await generate_with_fallback('gemini-2.0-flash', prompt)
-        logging.info(f"LLM Response received: {response_text[:100]}...")
+        def is_placeholder(data):
+            if not data or "nodes" not in data.get("graph", {}): return True
+            if len(data.get("graph", {}).get("nodes", [])) < 5: return True
+            if len(data.get("sections", {}).get("overview", "")) < 50: return True
+            return False
+
+        async def get_response():
+            # Priority: Groq -> Gemini
+            from shared import generate_with_groq
+            res_text = None
+            try:
+                res_text = await generate_with_groq(prompt, json_mode=True)
+            except Exception as e:
+                logging.warning(f"Groq programming generation failed: {e}")
+            
+            if not res_text:
+                res_text = await generate_with_fallback('gemini-2.0-flash', prompt)
+            
+            return extract_json(res_text)
+
+        graph_data = await get_response()
         
-        graph_data = extract_json(response_text)
+        if is_placeholder(graph_data):
+            logging.info("Placeholder programming graph detected, retrying...")
+            graph_data = await get_response()
+
         graph_data = validate_and_normalize_graph(graph_data)
 
         if "graph" in graph_data:
