@@ -34,8 +34,6 @@ function Sidebar({
   const handleSubmit = () => {
     if (mode === "pdf" && pdfFile) {
       generateGraphFromPDF(pdfFile);
-    } else if (mode === "programming" && code.trim()) {
-      generateGraph(code, "programming");
     }
   };
 
@@ -57,11 +55,11 @@ function Sidebar({
         <div className="sidebar-mobile-overlay" onClick={() => setMobileOpen(false)} />
       )}
       <aside
-        className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "pdf" ? "pdf-mode-autohide" : ""} ${mode === "programming" ? "programming-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "pdf" && mode !== "programming" ? "collapsed" : ""} ${isMobileOpen ? "mobile-open" : ""}`}
+        className={`sidebar ${mode === "query" ? "query-mode-autohide" : ""} ${mode === "pdf" ? "pdf-mode-autohide" : ""} ${isCollapsed && mode !== "query" && mode !== "pdf" ? "collapsed" : ""} ${isMobileOpen ? "mobile-open" : ""}`}
         data-testid="sidebar"
       >
       {/* Manual Toggle - Only for modes that don't autohide */}
-      {mode !== "query" && mode !== "pdf" && mode !== "programming" && (
+      {mode !== "query" && mode !== "pdf" && (
         <div className="sidebar-toggle-container">
           <button
             className="sidebar-collapse-btn"
@@ -74,52 +72,6 @@ function Sidebar({
       )}
 
       <div className="sidebar-content">
-        {/* INPUT SECTION - Restricted to Programming */}
-        {mode === "programming" && (
-          <div className="sidebar-section">
-            <h3 className="section-title">
-              <FileText size={16} />
-              <span>INPUT</span>
-            </h3>
-
-            <div className="input-container" data-testid="code-input-container">
-              <div className="code-editor-wrapper">
-                <Editor
-                  height="200px"
-                  defaultLanguage="javascript"
-                  theme="vs-dark"
-                  value={code}
-                  onChange={(value) => setCode(value || "")}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    lineNumbers: "on",
-                    scrollBeyondLastLine: false
-                  }}
-                />
-              </div>
-              <div className="button-group">
-                <button
-                  className="btn-primary"
-                  onClick={handleSubmit}
-                  disabled={!code.trim() || loading}
-                  data-testid="visualize-code-btn"
-                >
-                  <Send size={16} />
-                  Visualize Code Logic
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={handleClear}
-                  data-testid="clear-code-btn"
-                >
-                  <Trash2 size={16} />
-                  Clear
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ACTIONS SECTION */}
         <div className="sidebar-section">
