@@ -19,6 +19,7 @@ import NodeDetailsPanel from "./components/NodeDetailsPanel";
 import ExplanationPanel from "./components/ExplanationPanel";
 import TextResponsePanel from "./components/TextResponsePanel";
 import ProgrammingView from "./components/ProgrammingView";
+import ProgrammingSidebar from "./components/ProgrammingSidebar";
 import BottomInputBar from "./components/BottomInputBar";
 import HistoryDialog from "./components/HistoryDialog";
 import "./components/HistoryDialog.css";
@@ -434,13 +435,39 @@ function App() {
     setExplorationStack([]);
     setCurrentHistoryId(null);
     setPdfText("");
+    setProgrammingCode("");
   }, []);
 
-  const handleNewQuery = useCallback(() => {
+  const handleNewQuery = useCallback(async () => {
+    // If in programming mode and not temporary, save the current state to history if it's not empty
+    if (mode === 'programming' && !isTemporary && programmingCode.trim()) {
+      try {
+        if (currentHistoryId) {
+          // Update existing history item
+          await axios.put(`${API}/history/${currentHistoryId}`, {
+            query: programmingCode,
+            response_data: graphData
+          });
+        } else {
+          // Create new history item for current unsaved code
+          await axios.post(`${API}/history`, {
+            query: programmingCode,
+            mode: 'programming',
+            response_data: graphData,
+            user_email: localStorage.getItem("userEmail")
+          });
+        }
+        // Then proceed to clear
+      } catch (err) {
+        console.error("Auto-save on reset failed:", err);
+      }
+    }
+    
     resetGraph();
     setIsTemporary(false);
     toast.info("New chart initialized.");
-  }, [resetGraph]);
+    if (fetchHistory) fetchHistory();
+  }, [mode, isTemporary, programmingCode, currentHistoryId, graphData, resetGraph, fetchHistory]);
 
   const handleTemporaryQuery = useCallback(() => {
     resetGraph();
@@ -494,6 +521,9 @@ function App() {
         setGraphData(normalizedData);
         setMode(targetMode);
         setActiveQuery(historyItem.query);
+        if (targetMode === 'programming') {
+          setProgrammingCode(historyItem.query);
+        }
 
         // NEW: Restore Stack and ID
         setExplorationStack(dataToRestore.explorationStack || []);
@@ -652,6 +682,22 @@ function App() {
             restoreFromHistory={restoreFromHistory}
             deleteHistoryItem={deleteHistoryItem}
             onShowFullHistory={fetchFullHistory}
+            loading={loading}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
+        )}
+
+        {mode === 'programming' && (
+          <ProgrammingSidebar
+            isMobileOpen={isMobileSidebarOpen}
+            setMobileOpen={setIsMobileSidebarOpen}
+            handleNewQuery={handleNewQuery}
+            handleTemporaryQuery={handleTemporaryQuery}
+            deleteAllHistory={deleteAllHistory}
+            history={history}
+            restoreFromHistory={restoreFromHistory}
+            deleteHistoryItem={deleteHistoryItem}
             loading={loading}
             isCollapsed={isSidebarCollapsed}
             setIsCollapsed={setIsSidebarCollapsed}
