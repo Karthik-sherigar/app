@@ -185,6 +185,24 @@ const ExplorationPage = () => {
     const [imageRetryCount, setImageRetryCount] = useState(0);
     const [imageReady, setImageReady] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState("Synchronizing Pedagogical Data...");
+    
+    useEffect(() => {
+        if (!loading) return;
+        const statuses = [
+            "Synchronizing Pedagogical Data...",
+            "Mapping Conceptual Relations...",
+            "Synthesizing Knowledge Structure...",
+            "Calibrating Neural Pathways...",
+            "Deepening Research Context..."
+        ];
+        let i = 0;
+        const interval = setInterval(() => {
+            i = (i + 1) % statuses.length;
+            setLoadingStatus(statuses[i]);
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [loading]);
+
     const chatEndRef = useRef(null);
     const chatInputRef = useRef(null);
 
@@ -194,7 +212,6 @@ const ExplorationPage = () => {
             console.log("Deep Dive: Starting fetch for", nodeId);
             setLoading(true);
             setError(null);
-            setLoadingStatus("Synchronizing Pedagogical Data...");
             
             // Only show skeleton if loading takes more than 200ms
             skeletonTimer = setTimeout(() => setShowSkeleton(true), 200);
@@ -210,7 +227,7 @@ const ExplorationPage = () => {
                     nodeId: nodeId,
                     nodeLabel: nodeId.replace(/_/g, ' '),
                     context: rootTopic ? `In the context of the study of ${rootTopic}` : ''
-                }, { timeout: 100000 }); // High timeout for LLM
+                }, { timeout: 120000 }); // High timeout for LLM
                 
                 console.log("Deep Dive: Received data", res.data);
                 
@@ -218,16 +235,14 @@ const ExplorationPage = () => {
                     const p = ["Introduction paragraph here", "Next topic 1", "A test question?", "PICKED_CATEGORY"];
                     const str = JSON.stringify(d);
                     if (p.some(term => str.includes(term))) return true;
-                    if (!d.overview || d.overview.length < 100) return true;
+                    if (!d.overview || d.overview.length < 50) return true;
                     return false;
                 };
 
                 if (isPlaceholder(res.data) && !window._didRetryDeepDive) {
-                    console.log("Placeholder detected in frontend, retrying...");
+                    console.log("Placeholder detected, retrying with higher depth...");
                     window._didRetryDeepDive = true;
-                    // Reset loading states to show the custom status
                     setError(null);
-                    setLoadingStatus("Deepening Research (Retry 1/1)...");
                     return fetchDeepDive();
                 }
 
