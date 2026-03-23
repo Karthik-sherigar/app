@@ -26,124 +26,67 @@ async def generate_graph(request: QueryRequest):
         raise HTTPException(status_code=400, detail="Invalid mode for query server")
     
     try:
-        graph_prompt = f"""Construct a hierarchical "Knowledge Tree" for the topic: "{request.query}"
-Generate a structured JSON response with:
-1. A detailed textual explanation
-2. A HIERARCHICAL TREE of 12-15 nodes organized in multiple vertical levels
-3. Distinct relations (Edges) connecting parent nodes to EXACTLY TWO child nodes (Strict Binary Branching)
+        combined_prompt = f"""Construct a hierarchical "Knowledge Tree" and artistic "Visual Palette" for: "{request.query}"
 
-CRITICAL STRUCTURE REQUIREMENTS:
-- Level 0: 1 root node (main concept)
-- Level 1-2: Branch each parent into exactly 2 sub-nodes.
-- Total Nodes: ~8-10 nodes (Keep it concise and fast).
-- Format: Use short, concept-based string IDs.
-- Return ONLY the JSON object. No markdown.
+Generate a structured JSON response containing:
+1. "answer": A 2-3 paragraph pedagogical narration explaining the concepts and their connections.
+2. "sections": {{"overview": "2- sentence intro", "concepts": [...], "dependencies": [...], "summary": "1-paragraph wrap-up"}}
+3. "graph": {{"nodes": [...], "edges": [...]}}
+4. "visual_prompts": A list of 8-10 unique, artistic keywords (e.g., "cybernetic neurons", "neon circuits") representing this field for background aesthetics.
 
-Return ONLY valid JSON in this exact format:
-{{
-  "answer": "A comprehensive explanatory narration of the entire generated graph, explicitly detailing how each node connects to the others and the nature of their relationships.",
-  "sections": {{
-    "overview": "Brief 2-3 sentence overview of the subject.",
-    "concepts": [
-      {{"id": "1", "name": "Main Concept", "explanation": "Detailed explanation"}}
-    ],
-    "dependencies": [
-      {{"from": "Main Concept", "to": "Related Concept", "relation": "depends_on"}}
-    ],
-    "summary": "A concise 2-3 paragraph summary of the detailed overview, capturing the essence of the graph's structure and concepts."
-  }},
-  "graph": {{
-    "nodes": [
-      {{"id": "main_concept_slug", "label": "Main Concept", "type": "Concept", "description": "Brief description", "importance": "high", "depth": 0}},
-      {{"id": "subtopic_1_slug", "label": "Subtopic 1", "type": "Component", "description": "First major area", "importance": "high", "depth": 1}},
-      {{"id": "subtopic_2_slug", "label": "Subtopic 2", "type": "Component", "description": "Second major area", "importance": "high", "depth": 1}},
-      {{"id": "detail_1_1_slug", "label": "Detail 1.1", "type": "Prerequisite", "description": "Specific detail", "importance": "medium", "depth": 2}},
-      {{"id": "detail_1_2_slug", "label": "Detail 1.2", "type": "Prerequisite", "description": "Another detail", "importance": "medium", "depth": 2}}
-    ],
-    "edges": [
-      {{"source": "main_concept_slug", "target": "subtopic_1_slug", "relation": "HAS_COMPONENT"}},
-      {{"source": "main_concept_slug", "target": "subtopic_2_slug", "relation": "HAS_COMPONENT"}},
-      {{"source": "subtopic_1_slug", "target": "detail_1_1_slug", "relation": "INCLUDES"}},
-      {{"source": "subtopic_1_slug", "target": "detail_1_2_slug", "relation": "INCLUDES"}}
-    ]
-  }}
-}}
-Types: Concept, Prerequisite, Application, Component
-Return ONLY valid JSON in this exact format. 
-CRITICAL: ENSURE A STRICT TREE STRUCTURE. NO NODE SHOULD HAVE MULTIPLE PARENTS. IF A CONCEPT IS SHARED, CREATE A DUPLICATE NODE OR MAP IT TO THE MOST RELEVANT BRANCH.
-CRITICAL: BRANCH THE ROOT INTO 2-4 DISTINCT SUB-TOPICS FIRST TO ENSURE A BALANCED LAYOUT.
+STRICT GRAPH REQUIREMENTS:
+- Root node (depth 0) branches into 2-4 sub-nodes (depth 1).
+- Total nodes: 8-12 (Keep it concise and fast).
+- Strict tree structure (one parent per node).
+- Use short, concept-based string IDs.
+
+Return ONLY valid JSON.
 """
-        visual_prompt = f"""Generate a high-quality visual palette for a journey about: "{request.query}"
-Provide a list of 10 unique, artistic keywords representing concepts in this field.
-Return ONLY JSON: {{"visual_prompts": ["cybernetic neural network", "glowing neon circuits", ...]}}"""
-
-        async def run_parallel():
-            async def get_graph():
-                # Graph Priority: Groq -> Gemini -> Cohere
-                last_error = None
-                
-                # 1. Groq
-                try:
-                    resp = await generate_with_groq(graph_prompt, json_mode=True)
-                    if resp: return resp
-                except Exception as e:
-                    logging.warning(f"Groq graph generation failed: {e}")
-                    last_error = e
-
-                # 2. Gemini
-                try:
-                    return await _generate_with_gemini_internal('gemini-2.0-flash', graph_prompt, forced_key_index=0)
-                except Exception as e:
-                    logging.warning(f"Gemini graph generation failed: {e}")
-                    last_error = e
-
-                # 3. Cohere
-                try:
-                    resp = await generate_with_cohere(graph_prompt)
-                    if resp: return resp
-                except Exception as e:
-                    logging.warning(f"Cohere graph generation failed: {e}")
-                    last_error = e
-                
-                # All failed
-                raise HTTPException(status_code=503, detail=f"Failed to generate graph. All AI providers failed. Last error: {str(last_error)}")
-            
-            async def get_visuals():
-                # Visuals can default to Gemini as it's good for lists
-                key_index = 1 if len(api_keys) > 1 else 0
-                try:
-                    return await _generate_with_gemini_internal('gemini-2.0-flash', visual_prompt, forced_key_index=key_index)
-                except:
-                   # Fallback visuals
-                   return '{"visual_prompts": []}'
-
-            return await asyncio.gather(get_graph(), get_visuals())
-
-        raw_response, visuals_response = await run_parallel()
         
-        # ... processing logic remains same ...
+        async def get_combined_response():
+            # Priority: Groq -> Gemini -> Cohere
+            last_error = None
+            
+            # 1. Groq
+            try:
+                resp = await generate_with_groq(combined_prompt, json_mode=True)
+                if resp: return resp
+            except Exception as e:
+                logging.warning(f"Groq combined generation failed: {e}")
+                last_error = e
+
+            # 2. Gemini
+            try:
+                return await _generate_with_gemini_internal('gemini-2.0-flash', combined_prompt, forced_key_index=0)
+            except Exception as e:
+                logging.warning(f"Gemini combined generation failed: {e}")
+                last_error = e
+
+            # 3. Cohere
+            try:
+                resp = await generate_with_cohere(combined_prompt)
+                if resp: return resp
+            except Exception as e:
+                logging.warning(f"Cohere combined generation failed: {e}")
+                last_error = e
+            
+            raise HTTPException(status_code=503, detail=f"AI generation failed: {str(last_error)}")
+
+        raw_response = await get_combined_response()
         result = extract_json(raw_response)
         
-        # Merge visuals
-        try:
-             vis_data = extract_json(visuals_response)
-             if "visual_prompts" in vis_data:
-                 result["visual_prompts"] = vis_data["visual_prompts"]
-        except:
-             pass
-
         # Validate and insert into Neo4j
         result = validate_and_normalize_graph(result)
         
-        if "nodes" in result["graph"]:
+        if "nodes" in result.get("graph", {}):
              neo4j_service.insert_nodes(result["graph"]["nodes"], mode=request.mode)
-        if "edges" in result["graph"]:
+        if "edges" in result.get("graph", {}):
              neo4j_service.insert_relationships(result["graph"]["edges"], mode=request.mode)
 
         if not request.is_temporary:
              history_item = session_service.save_query_history(request.query, json.dumps(result), mode=request.mode, user_email=request.user_email)
              if history_item:
-                 result["historyId"] = history_item.id
+                  result["historyId"] = history_item.id
         else:
              result["historyId"] = None
         
@@ -468,28 +411,23 @@ async def deep_dive(request: DeepDiveRequest):
 
 FIELD 1: CATEGORY - Pick one: COMP_SCI, SCIENCE, MEDICAL, HUMANITIES, GENERAL.
 
-FIELD 2: OVERVIEW - 600-1000 words. formal academic prose. NO bullets. Cover definition, principles, and real-world relevance.
+FIELD 2: OVERVIEW - 250-400 words. Formal academic prose. Cover definition, principles, and real-world relevance.
 
 FIELD 3: MODULE CONTENT (dynamicModules)
-- steps/derivation: Numbered items, detailed paragraphs (50-70 words per step).
-- concept: 4-6 separated concept blocks.
-
-- LABELS: AVOID TEXT LABELS. Focus on symbolic representation and structural clarity.
-- CONCEPTUAL FOCUS: Ensure the diagram is an accurate schematic for {request.nodeLabel}.
-- STYLE: Stark White Background, HEAVY WEIGHTED BLACK OUTLINES. No gradients or shadows.
-- CRITICAL: DO NOT include alpha-numeric characters if possible, as they will be garbled. Focus on the geometry.
+- steps/derivation: Numbered items, technical paragraphs (30-50 words per step).
+- concept: 3-5 separated concept blocks.
 
 OUTPUT FORMAT: Return ONLY a valid JSON object.
 {{
   "title": "{request.nodeLabel}",
   "category": "COMP_SCI",
-  "overview": "A detailed 300-400 word academic explanation of {request.nodeLabel}. This should cover the core principles, historical context, and modern applications in a formal textbook style.",
-  "imagePrompt": "A professional 2D diagram of {request.nodeLabel} with bold black outlines and clear labels on a white background. [TEXT DESCRIPTION ONLY. NO JSON. NO COORDINATES.]",
+  "overview": "A concise 200-300 word academic explanation of {request.nodeLabel}. Focus on clarity and core principles in a formal textbook style.",
+  "imagePrompt": "A professional 2D diagram of {request.nodeLabel} with bold black outlines on a white background. Technical schematic style.",
   "conceptGraph": [{{ "label": "Foundational Concept", "relation": "supports" }}],
   "dynamicModules": [
-    {{ "type": "derivation", "title": "Core Mechanism", "content": "1. First step of the process explained clearly.\\n2. Second critical step with technical detail." }}
+    {{ "type": "derivation", "title": "Core Mechanism", "content": "1. First step explained clearly.\\n2. Second critical step with technical detail." }}
   ],
-  "aiTutorContext": "Brief educational context for the AI tutor to guide the student.",
+  "aiTutorContext": "Brief educational context for the AI tutor.",
   "knowledgeChallenge": [{{ "question": "What is the primary function of {request.nodeLabel}?", "options": ["Option A", "Option B", "Option C", "Option D"], "answerIndex": 0 }}],
   "proactivePaths": ["Related Topic A", "Related Topic B"],
   "quickTips": ["Did you know that {request.nodeLabel} is crucial for...", "Always remember that..."]
@@ -499,7 +437,7 @@ OUTPUT FORMAT: Return ONLY a valid JSON object.
             placeholders = ["Next topic 1", "Next topic 2", "Introduction paragraph here", "A test question?", "Step one", "PICKED_CATEGORY"]
             for p in placeholders:
                 if p in str(data): return True
-            if len(data.get('overview', '')) < 100: return True
+            if len(data.get('overview', '')) < 50: return True
             return False
 
         async def get_response():
