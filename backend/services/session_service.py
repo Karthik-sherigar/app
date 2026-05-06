@@ -21,6 +21,19 @@ if DB_TYPE == "mysql":
     # Using pymysql as the driver
     DATABASE_URL = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
     engine = create_engine(DATABASE_URL)
+elif DB_TYPE == "postgres" or DB_TYPE == "postgresql":
+    # Using psycopg2 for Postgres/Supabase
+    # Supabase gives a full connection string, we can just use that
+    DATABASE_URL = os.getenv("POSTGRES_URL")
+    if not DATABASE_URL:
+        # Fallback to piecing it together if URL not provided
+        user = os.getenv("POSTGRES_USER", "postgres")
+        password = os.getenv("POSTGRES_PASSWORD", "postgres")
+        host = os.getenv("POSTGRES_HOST", "localhost")
+        port = os.getenv("POSTGRES_PORT", "5432")
+        db_name = os.getenv("POSTGRES_DB", "postgres")
+        DATABASE_URL = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"
+    engine = create_engine(DATABASE_URL)
 else:
     DATABASE_URL = os.getenv("SQLITE_URL", "sqlite:///./database.db")
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
