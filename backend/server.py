@@ -18,6 +18,24 @@ from shared import (
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from auth_routes import auth_router
 
+from query_server import (
+    query_generate_graph, query_expand_node, query_explain_confusion, 
+    query_explain_node, query_ask_node, query_deep_dive
+)
+from programming_server import (
+    programming_generate_graph, programming_expand_node, 
+    programming_format_code, programming_execute_code
+)
+from pdf_server import (
+    pdf_debug_text, pdf_generate_graph_from_pdf, 
+    pdf_deep_dive_handler, pdf_chat_handler
+)
+from shared import (
+    QueryRequest, ExpandNodeRequest, ExplainRequest, AskNodeRequest, DeepDiveRequest,
+    CodeExecutionRequest, PDFDeepDiveRequest, PDFChatRequest
+)
+
+
 app = FastAPI()
 
 app.include_router(auth_router)
@@ -35,10 +53,6 @@ app.add_middleware(
 os.makedirs("static/images", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Sub-server configurations
-QUERY_SERVER_URL = os.environ.get("QUERY_SERVER_URL", "http://localhost:8011")
-PDF_SERVER_URL = os.environ.get("PDF_SERVER_URL", "http://localhost:8012")
-PROGRAMMING_SERVER_URL = os.environ.get("PROGRAMMING_SERVER_URL", "http://localhost:8013")
 
 client = httpx.AsyncClient()
 
@@ -49,111 +63,57 @@ active_image_tasks = {}
 image_semaphore = asyncio.Semaphore(3)
 
 @app.post("/api/generate-graph")
-async def generate_graph_proxy(request: Request):
+async def generate_graph_endpoint(request: QueryRequest):
     try:
-        body = await request.json()
-        query = body.get("query", "")
-        mode = body.get("mode", "query")
-        
         # 1. Check Cache for Queries
-        if query and mode in ["query", "programming"]:
-            cached_query = session_service.get_query_cache(query, mode=mode)
+        if request.query and request.mode in ["query", "programming"]:
+            cached_query = session_service.get_query_cache(request.query, mode=request.mode)
             if cached_query:
-                logging.info(f"Serving {mode} query from cache: {query}")
+                logging.info(f"Serving {request.mode} query from cache: {request.query}")
                 return json.loads(cached_query.answer)
         
-        if mode == "query":
-            target_url = f"{QUERY_SERVER_URL}/api/generate-graph"
-        elif mode == "programming":
-            target_url = f"{PROGRAMMING_SERVER_URL}/api/generate-graph"
+        if request.mode == "query":
+            return await query_generate_graph(request)
+        elif request.mode == "programming":
+            return await programming_generate_graph(request)
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported mode: {mode}")
-        
-        response = await client.post(target_url, json=body, timeout=90.0)
-        return response.json()
+            raise HTTPException(status_code=400, detail=f"Unsupported mode: {request.mode}")
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Proxy error (generate-graph): {e}")
+        logging.error(f"Error (generate-graph): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate-graph-from-pdf")
-async def generate_graph_from_pdf_proxy(file: UploadFile = File(...), user_email: str = Form(None)):
-    try:
-        # Re-upload the file to the PDF server
-        files = {"file": (file.filename, await file.read(), file.content_type)}
-        data = {"user_email": user_email} if user_email else None
-        response = await client.post(f"{PDF_SERVER_URL}/api/generate-graph-from-pdf", files=files, data=data, timeout=90.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (pdf): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def generate_graph_from_pdf_endpoint(file: UploadFile = File(...), user_email: str = Form(None)):
+    return await pdf_generate_graph_from_pdf(file, user_email)
 
 @app.post("/api/pdf/deep-dive")
-async def pdf_deep_dive_proxy(request: Request):
-    try:
-        body = await request.json()
-        response = await client.post(f"{PDF_SERVER_URL}/api/pdf/deep-dive", json=body, timeout=120.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (pdf-deep-dive): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def pdf_deep_dive_endpoint(request: PDFDeepDiveRequest):
+    return await pdf_deep_dive_handler(request)
 
 @app.post("/api/pdf/chat")
-async def pdf_chat_proxy(request: Request):
-    try:
-        body = await request.json()
-        response = await client.post(f"{PDF_SERVER_URL}/api/pdf/chat", json=body, timeout=120.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (pdf-chat): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def pdf_chat_endpoint(request: PDFChatRequest):
+    return await pdf_chat_handler(request)
 
 @app.post("/api/expand-node")
-async def expand_node_proxy(request: Request):
-    try:
-        body = await request.json()
-        mode = body.get("mode", "query")
-        
-        if mode == "programming":
-            target_url = f"{PROGRAMMING_SERVER_URL}/api/expand-node"
-        else:
-            target_url = f"{QUERY_SERVER_URL}/api/expand-node"
-            
-        response = await client.post(target_url, json=body, timeout=90.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (expand-node): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def expand_node_endpoint(request: ExpandNodeRequest):
+    if request.mode == "programming":
+        return await programming_expand_node(request)
+    else:
+        return await query_expand_node(request)
 
 @app.post("/api/execute-code")
-async def execute_code_proxy(request: Request):
-    try:
-        body = await request.json()
-        response = await client.post(f"{PROGRAMMING_SERVER_URL}/api/execute-code", json=body, timeout=10.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (execute-code): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def execute_code_endpoint(request: CodeExecutionRequest):
+    return await programming_execute_code(request)
 
 @app.post("/api/format-code")
-async def format_code_proxy(request: Request):
-    try:
-        body = await request.json()
-        response = await client.post(f"{PROGRAMMING_SERVER_URL}/api/format-code", json=body, timeout=30.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (format-code): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def format_code_endpoint(request: CodeExecutionRequest):
+    return await programming_format_code(request)
 
 @app.post("/api/explain-confusion")
-async def explain_confusion_proxy(request: Request):
-    try:
-        body = await request.json()
-        # Explain confusion is currently handled by query server
-        response = await client.post(f"{QUERY_SERVER_URL}/api/explain-confusion", json=body, timeout=30.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (explain-confusion): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def explain_confusion_endpoint(request: ExplainRequest):
+    return await query_explain_confusion(request)
 
 @app.get("/api/history", response_model=List[HistoryItem])
 async def get_history(limit: int = 20, include_data: bool = True, mode: str = None, user_email: str = None):
@@ -262,43 +222,21 @@ async def update_history_item(item_id: int, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/explain-node")
-async def explain_node_proxy(request: Request):
-    """Proxy endpoint for detailed node explanations"""
-    try:
-        body = await request.json()
-        target_url = f"{QUERY_SERVER_URL}/api/explain-node"
-        response = await client.post(target_url, json=body, timeout=90.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (explain-node): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def explain_node_endpoint(request: Request):
+    return await query_explain_node(request)
 
 @app.post("/api/ask-node")
-async def ask_node_proxy(request: Request):
-    """Proxy endpoint for asking questions about a node"""
-    try:
-        body = await request.json()
-        target_url = f"{QUERY_SERVER_URL}/api/ask-node"
-        # Increase timeout for LLM generation
-        response = await client.post(target_url, json=body, timeout=60.0)
-        return response.json()
-    except Exception as e:
-        logging.error(f"Proxy error (ask-node): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def ask_node_endpoint(request: AskNodeRequest):
+    return await query_ask_node(request)
 
 @app.post("/api/deep-dive")
-async def deep_dive_proxy(request: Request):
-    """Proxy endpoint for immersive deep dives with context-aware caching"""
+async def deep_dive_endpoint(request: DeepDiveRequest, req_headers: Request):
     try:
-        body = await request.json()
-        node_id = body.get("nodeId")
-        context = body.get("context", "")
+        node_id = request.nodeId
+        context = request.context
         logging.info(f"Deep-dive request for node: {node_id}, context: {context}")
         
-        # Extract mode from headers if present, else default to query
-        mode = request.headers.get("x-mode", "query")
-
-        # Create a unique cache key
+        mode = req_headers.headers.get("x-mode", "query")
         cache_key = f"{node_id}:{context}" if context else str(node_id)
 
         if node_id:
@@ -307,15 +245,11 @@ async def deep_dive_proxy(request: Request):
                 logging.info(f"Serving deep dive from cache for: {cache_key} (mode={mode})")
                 return json.loads(cached.data)
 
-        target_url = f"{QUERY_SERVER_URL}/api/deep-dive"
-        response = await client.post(target_url, json=body, timeout=90.0)
-        data = response.json()
+        data = await query_deep_dive(request)
         
-        # Cache the result with the unique key
-        if node_id and response.status_code == 200:
+        if node_id:
             session_service.save_deep_dive(cache_key, json.dumps(data), mode=mode)
             
-            # OPTIMIZATION: Kick off image generation in background if imagePrompt is present
             image_prompt = data.get("imagePrompt")
             category = data.get("category", "GENERAL")
             if image_prompt and not data.get("imageUrl"):
@@ -328,7 +262,7 @@ async def deep_dive_proxy(request: Request):
             
         return data
     except Exception as e:
-        logging.error(f"Proxy error (deep-dive): {e}")
+        logging.error(f"Error (deep-dive): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate-image")
@@ -393,7 +327,7 @@ async def search_wikipedia_image(topic: str, wclient: httpx.AsyncClient) -> str:
     """Search Wikipedia using full-text search to find a real educational image. Free, no key needed."""
     try:
         headers = {
-            "User-Agent": "EyePhish-EduApp/1.0 (educational; contact: admin@eyephish.com)",
+            "User-Agent": "Knowledgegraph-EduApp/1.0 (educational; contact: admin@knowledgegraph.com)",
             "Accept": "application/json"
         }
         # Step 1: Use Wikipedia full-text search to find the closest matching article
@@ -661,12 +595,8 @@ async def generate_image_internal(image_prompt: str, node_id: str, context: str,
 async def health_check():
     return {
         "status": "healthy",
-        "service": "root-gateway",
-        "sub_services": {
-            "query": QUERY_SERVER_URL,
-            "pdf": PDF_SERVER_URL,
-            "programming": PROGRAMMING_SERVER_URL
-        }
+        "service": "unified-backend",
+        "sub_services": "unified"
     }
 
 # ---------------------------------------------------------
@@ -700,4 +630,4 @@ async def serve_frontend(full_path: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8015)

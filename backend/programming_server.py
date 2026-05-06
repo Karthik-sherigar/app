@@ -1,5 +1,4 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
 import logging
 import json
 import subprocess
@@ -13,18 +12,7 @@ from shared import (
     extract_json
 )
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/api/generate-graph")
-async def generate_graph(request: QueryRequest):
+async def programming_generate_graph(request: QueryRequest):
     if request.mode != "programming":
         raise HTTPException(status_code=400, detail="Invalid mode for programming server")
     
@@ -101,8 +89,7 @@ Relations: "CALLS", "FLOWS_TO", "CONTAINS"."""
         logging.error(f"Programming generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/expand-node")
-async def expand_node(request: ExpandNodeRequest):
+async def programming_expand_node(request: ExpandNodeRequest):
     """
     Detailed logic flow expansion for a specific function/component.
     """
@@ -165,8 +152,7 @@ Return ONLY valid JSON."""
 
 
 
-@app.post("/api/format-code")
-async def format_code(request: CodeExecutionRequest):
+async def programming_format_code(request: CodeExecutionRequest):
     """
     AI-powered code formatting and correction.
     """
@@ -209,8 +195,7 @@ STRICT REQUIREMENTS:
 
 
 
-@app.post("/api/execute-code")
-async def execute_code(request: CodeExecutionRequest):
+async def programming_execute_code(request: CodeExecutionRequest):
     lang = request.language.lower()
     code = request.code
 
@@ -257,6 +242,4 @@ async def execute_code(request: CodeExecutionRequest):
         logging.error(f"Code execution error: {e}")
         return {"output": "", "error": str(e), "success": False}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+# Server endpoints merged into server.py

@@ -1,5 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException, Request
 import logging
 import asyncio
 import json
@@ -10,18 +9,7 @@ from shared import (
     api_keys, extract_json, validate_and_normalize_graph
 )
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/api/generate-graph")
-async def generate_graph(request: QueryRequest):
+async def query_generate_graph(request: QueryRequest):
     if request.mode != "query":
         raise HTTPException(status_code=400, detail="Invalid mode for query server")
     
@@ -98,8 +86,7 @@ Return ONLY valid JSON.
         logging.error(f"Graph generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/expand-node")
-async def expand_node(request: ExpandNodeRequest):
+async def query_expand_node(request: ExpandNodeRequest):
     try:
         prompt = f"""Expand the knowledge graph around the node: "{request.node_label}"
 STRICT REQUIREMENT: Create EXACTLY 2 new related sub-nodes for this specific topic.
@@ -144,8 +131,7 @@ Return ONLY valid JSON with "nodes" and "edges" lists. Ensure the branching is s
         logging.error(f"Node expansion error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/explain-confusion")
-async def explain_confusion(request: ExplainRequest):
+async def query_explain_confusion(request: ExplainRequest):
     try:
         prompt = f"""Explain "{request.topic}" in a simple, clear way.
 {"Focus on: " + request.confusion if request.confusion else ""}
@@ -166,8 +152,7 @@ Format as JSON."""
         logging.error(f"Explanation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/explain-node")
-async def explain_node(request: Request):
+async def query_explain_node(request: Request):
     try:
         body = await request.json()
         node_id = body.get("nodeId", "")
@@ -346,8 +331,7 @@ Return ONLY valid JSON in this EXACT format (no markdown, no extra text):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/ask-node")
-async def ask_node(request: AskNodeRequest):
+async def query_ask_node(request: AskNodeRequest):
     try:
         prompt = f"""
         You are an elite academic professor and expert on the concept: "{request.nodeLabel}".
@@ -403,8 +387,7 @@ async def ask_node(request: AskNodeRequest):
         logging.error(f"Ask node error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/deep-dive")
-async def deep_dive(request: DeepDiveRequest):
+async def query_deep_dive(request: DeepDiveRequest):
     try:
         prompt = f"""You are a university-level educational content generator writing a DEFINITIVE TEXTBOOK on the subject: "{request.nodeLabel}".
 {f"CRITICAL DOMAIN CONTEXT: This concept must be explained strictly within the domain of: {request.context}" if request.context else ""}
@@ -484,14 +467,4 @@ OUTPUT FORMAT: Return ONLY a valid JSON object.
         logging.error(f"Deep dive error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "service": "query-server"}
-
-@app.get("/")
-async def root():
-    return {"message": "Query Server Active"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8011)
+# Server endpoints merged into server.py

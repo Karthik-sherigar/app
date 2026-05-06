@@ -1,5 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile, File, HTTPException, Form
 import logging
 import json
 import io
@@ -23,18 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pdf_server")
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/api/debug-pdf-text")
-async def debug_pdf_text(file: UploadFile = File(...)):
+async def pdf_debug_text(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
@@ -46,8 +34,7 @@ async def debug_pdf_text(file: UploadFile = File(...)):
     except Exception as e:
         return {"error": str(e)}
 
-@app.post("/api/generate-graph-from-pdf")
-async def generate_graph_from_pdf(file: UploadFile = File(...), user_email: str = Form(None)):
+async def pdf_generate_graph_from_pdf(file: UploadFile = File(...), user_email: str = Form(None)):
     try:
         contents = await file.read()
         filename_lower = file.filename.lower()
@@ -296,8 +283,7 @@ JSON FORMAT:
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/pdf/deep-dive")
-async def pdf_deep_dive(req: PDFDeepDiveRequest):
+async def pdf_deep_dive_handler(req: PDFDeepDiveRequest):
     try:
         history = session_service.get_history_item(req.historyId)
         if not history:
@@ -432,8 +418,7 @@ JSON TEMPLATE:
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/pdf/chat")
-async def pdf_chat(req: PDFChatRequest):
+async def pdf_chat_handler(req: PDFChatRequest):
     try:
         history_item = session_service.get_history_item(req.historyId)
         if not history_item:
@@ -488,6 +473,4 @@ Response:"""
         logger.error(f"PDF chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+# Server endpoints merged into server.py

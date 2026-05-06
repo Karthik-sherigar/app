@@ -29,15 +29,9 @@ if (-not (Test-Path "venv")) {
 Write-Host "Checking backend dependencies..."
 pip install -r requirements.txt
 
-# Start uvicorn gateway in a NEW window
-Write-Host "🚀 Starting Root Gateway (8000)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn server:app --reload --host 0.0.0.0 --port 8000"
-
-# Start sub-servers in separate windows
-Write-Host "🚀 Starting Mode Servers (8001, 8002, 8003)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn query_server:app --reload --host 0.0.0.0 --port 8001"
-Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn pdf_server:app --reload --host 0.0.0.0 --port 8002"
-Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn programming_server:app --reload --host 0.0.0.0 --port 8003"
+# Start uvicorn unified server in a NEW window
+Write-Host "🚀 Starting Unified Backend Server (8015)..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-NoExit -Command Set-Location -LiteralPath '$BackendPath'; .\venv\Scripts\Activate.ps1; uvicorn server:app --reload --host 0.0.0.0 --port 8015"
 
 # Wait for backend services to initialize
 Start-Sleep -Seconds 5
@@ -60,6 +54,6 @@ Set-Location -Path $RootPath
 
 Write-Host ""
 Write-Host "✅ Services started!" -ForegroundColor Green
-Write-Host "Backend: http://localhost:8000"
+Write-Host "Backend: http://localhost:8015"
 Write-Host "Frontend: http://localhost:3000"
 Write-Host "Please check the individual terminal windows for logs."
