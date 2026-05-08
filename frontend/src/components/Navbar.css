@@ -182,4 +182,46 @@
     align-items: center;
     justify-content: center;
   }
+
+  .navbar-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .navbar-profile-container {
+    margin-left: 4px;
+  }
+
+  .navbar-profile-menu {
+    position: fixed;
+    top: 52px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: 300px;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  }
+
+  .navbar-avatar-fallback {
+    font-size: 12px;
+  }
+
+  .profile-menu-avatar-wrapper {
+    width: 40px;
+    height: 40px;
+  }
+
+  .profile-menu-fallback {
+    font-size: 14px;
+  }
+
+  .profile-menu-info h4 {
+    font-size: 13px;
+  }
+
+  .profile-menu-info p {
+    font-size: 11px;
+  }
 }

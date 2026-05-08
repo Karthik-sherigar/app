@@ -285,6 +285,96 @@
 .z-10 { z-index: 10; }
 
 @media (max-width: 768px) {
-    .pdf-landing-title { font-size: 2.25rem; }
-    .pdf-features-grid { flex-direction: column; gap: 16px; }
+    .pdf-landing-container {
+        padding: 16px;
+        align-items: center;
+    }
+
+    .pdf-landing-content {
+        max-width: 100%;
+    }
+
+    .pdf-bg-blur-1 {
+        width: 300px;
+        height: 300px;
+    }
+
+    .pdf-bg-blur-2 {
+        width: 200px;
+        height: 200px;
+    }
+
+    .pdf-header-badge {
+        font-size: 9px;
+        padding: 6px 12px;
+        margin-bottom: 16px;
+    }
+
+    .pdf-landing-title {
+        font-size: 1.4rem;
+        margin: 0 0 6px 0;
+    }
+
+    .pdf-landing-subtitle {
+        font-size: 0.78rem;
+        margin-bottom: 16px;
+        max-width: 100%;
+    }
+
+    .pdf-dropzone {
+        max-width: 100%;
+        border-radius: 16px;
+        margin-bottom: 16px;
+    }
+
+    .dropzone-inner {
+        padding: 16px;
+        border-radius: 16px;
+    }
+
+    .dropzone-icon-container {
+        width: 40px;
+        height: 40px;
+        margin-bottom: 8px;
+    }
+
+    .dropzone-typography h3 {
+        font-size: 0.9rem;
+    }
+
+    .dropzone-action-row {
+        font-size: 0.75rem;
+        margin-bottom: 8px;
+    }
+
+    .constraint-pill {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+    }
+
+    .pdf-features-grid {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .feature-card {
+        padding: 10px;
+        border-radius: 10px;
+        gap: 8px;
+    }
+
+    .feature-icon-wrapper {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        border-radius: 6px;
+    }
+
+    .feature-text h4 {
+        font-size: 0.78rem;
+    }
+
+    .feature-text p {
+        font-size: 0.7rem;
+    }
 }

@@ -198,3 +198,71 @@
         display: none;
     }
 }
+
+@media (max-width: 768px) {
+    .pdf-path-container {
+        padding: 40px 16px;
+    }
+
+    .pdf-path-header {
+        margin-bottom: 40px;
+    }
+
+    .path-badge {
+        font-size: 10px;
+        padding: 6px 12px;
+        margin-bottom: 16px;
+    }
+
+    .path-title {
+        font-size: 28px;
+        letter-spacing: -0.02em;
+    }
+
+    .path-subtitle {
+        font-size: 14px;
+    }
+
+    .path-timeline {
+        gap: 60px;
+        padding: 40px 0;
+    }
+
+    .path-step {
+        gap: 16px !important;
+    }
+
+    .node-circle {
+        width: 56px;
+        height: 56px;
+    }
+
+    .node-number {
+        font-size: 24px;
+    }
+
+    .step-content-card {
+        padding: 20px;
+        border-radius: 16px;
+    }
+
+    .step-title {
+        font-size: 18px;
+        margin: 0 0 10px 0;
+    }
+
+    .step-description {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .path-footer {
+        margin-top: 48px;
+        gap: 12px;
+    }
+
+    .footer-icon {
+        width: 48px;
+        height: 48px;
+    }
+}

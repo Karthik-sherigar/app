@@ -33,12 +33,13 @@ const PROGRAMMING_VERBS = [
 const ICONS = [Network, Database, Brain, Cpu, Zap, Activity];
 
 // Binary Tree Layout: 1 Root -> 2 Children
+// Positions are now relative percentages of the container
 const TREE_NODES = [
     // Root
-    { id: 'n1', x: 380, y: 120, icon: 2, lines: ['short'] },
+    { id: 'n1', xPct: 50, yPct: 24, icon: 2, lines: ['short'] },
     // Level 1
-    { id: 'n2', x: 250, y: 280, icon: 0, lines: ['long', 'short'] },
-    { id: 'n3', x: 510, y: 280, icon: 1, lines: ['long', 'short'] },
+    { id: 'n2', xPct: 30, yPct: 60, icon: 0, lines: ['long', 'short'] },
+    { id: 'n3', xPct: 70, yPct: 60, icon: 1, lines: ['long', 'short'] },
 ];
 
 const TREE_EDGES = [
@@ -46,14 +47,14 @@ const TREE_EDGES = [
     { source: 'n1', target: 'n3', delay: 0.8 },
 ];
 
-const SkeletonNode = ({ x, y, icon, lines, delay }) => {
+const SkeletonNode = ({ xPct, yPct, icon, lines, delay }) => {
     const Icon = ICONS[icon % ICONS.length];
     return (
         <motion.div
             className="skeleton-node"
             style={{
-                left: x,
-                top: y
+                left: `${xPct}%`,
+                top: `${yPct}%`
             }}
             initial={{ opacity: 0, scale: 0.8, x: "-50%", y: "-50%" }}
             animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
@@ -72,19 +73,18 @@ const SkeletonNode = ({ x, y, icon, lines, delay }) => {
     );
 };
 
-const SkeletonEdge = ({ sourceId, targetId, delay }) => {
+const SkeletonEdge = ({ sourceId, targetId, delay, viewW = 800, viewH = 500 }) => {
     const sourceNode = TREE_NODES.find(n => n.id === sourceId);
     const targetNode = TREE_NODES.find(n => n.id === targetId);
 
     if (!sourceNode || !targetNode) return null;
 
-    const x1 = sourceNode.x;
-    const y1 = sourceNode.y + 24; // Bottom of source
-    const x2 = targetNode.x;
-    const y2 = targetNode.y - 24; // Top of target
+    // Convert percentage positions to SVG viewBox coordinates
+    const x1 = (sourceNode.xPct / 100) * viewW;
+    const y1 = (sourceNode.yPct / 100) * viewH + 24; // Bottom of source
+    const x2 = (targetNode.xPct / 100) * viewW;
+    const y2 = (targetNode.yPct / 100) * viewH - 24; // Top of target
 
-    // Cubic bezier for sweeping organic curve
-    // Add a tiny jitter to x2 if x1 === x2 to ensure linearGradient (objectBoundingBox) doesn't collapse
     const safeX2 = x1 === x2 ? x2 + 0.01 : x2;
     const pathD = `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${safeX2} ${(y1 + y2) / 2}, ${safeX2} ${y2}`;
 
@@ -224,8 +224,8 @@ const GraphLoadingAnimation = ({ mode = 'query' }) => {
                 {TREE_NODES.map((node, idx) => (
                     <SkeletonNode
                         key={node.id}
-                        x={node.x}
-                        y={node.y}
+                        xPct={node.xPct}
+                        yPct={node.yPct}
                         icon={node.icon}
                         lines={node.lines}
                         delay={idx * 0.25}

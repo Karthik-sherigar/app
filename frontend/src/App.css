@@ -1900,24 +1900,6 @@ h4 {
   }
 }
 
-@media (max-width: 768px) {
-  .navbar-center {
-    display: none;
-  }
-
-  .sidebar {
-    position: fixed;
-    left: -260px;
-    top: 64px;
-    height: calc(100vh - 64px);
-    z-index: 900;
-    transition: left 0.3s;
-  }
-
-  .sidebar.open {
-    left: 0;
-  }
-}
 
 /* FLOATING CHAT EXPERIENCE */
 .floating-chat-btn {
@@ -2975,33 +2957,93 @@ h4 {
    MOBILE RESPONSIVENESS OVERRIDES
    ========================================= */
 
+/* ---- Tablet breakpoint ---- */
+@media (max-width: 1024px) {
+  .node-explore-header {
+    padding: 40px 24px 28px;
+  }
+  .node-explore-title {
+    font-size: 36px;
+  }
+  .node-explore-content {
+    padding: 0 24px;
+  }
+  .node-explore-tab-btn {
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+}
+
+/* ---- Full mobile breakpoint ---- */
 @media (max-width: 768px) {
 
-  /* 
-     Hide the normal sidebar layout structure on mobile.
-     Convert to a completely detached off-canvas slider.
-  */
+  /* ===================== NAVBAR ===================== */
+  .navbar {
+    height: 52px !important;
+    padding: 0 12px !important;
+  }
+
+  .navbar-center {
+    display: none !important;
+  }
+
+  .logo-text {
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0.3px !important;
+  }
+
+  .navbar-brand-click {
+    gap: 6px !important;
+  }
+
+  .logo-icon {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .navbar-right {
+    gap: 8px !important;
+  }
+
+  .icon-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* ===================== LAYOUT ===================== */
+  .app-layout {
+    margin-top: 52px !important;
+    height: calc(100vh - 52px) !important;
+    width: 100vw !important;
+  }
+
+  .app-layout > .workspace {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  /* ===================== SIDEBAR ===================== */
   .sidebar {
     position: fixed !important;
-    top: 64px !important;
-    /* Below Navbar */
+    top: 52px !important;
     left: -100% !important;
-    /* Hidden off-screen */
-    width: 280px !important;
-    /* Force width */
-    height: calc(100vh - 64px) !important;
+    width: 85vw !important;
+    max-width: 320px !important;
+    height: calc(100vh - 52px) !important;
     z-index: 2000 !important;
     transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1) !important;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8) !important;
     opacity: 1 !important;
+    background: #0f172a !important;
   }
 
-  /* When the 'mobile-open' state is true, slide it in */
   .sidebar.mobile-open {
     left: 0 !important;
   }
 
-  /* Restore text display on mobile slider even if 'autohide' is somehow attached */
+  /* Override autohide labels on mobile */
   .sidebar .section-title span,
   .sidebar .btn-action span,
   .sidebar .history-preview-classic,
@@ -3010,63 +3052,414 @@ h4 {
     display: flex !important;
   }
 
-  /* Force solid opaque background to block out graph elements underneath */
-  .sidebar {
-    background: #0f172a !important;
-    /* Tailwind Slate 900 */
-  }
-
-  /* Reset alignment and padding from the desktop autohide states */
   .sidebar .sidebar-section {
     align-items: stretch !important;
   }
 
   .sidebar .sidebar-content {
-    padding: 20px !important;
+    padding: 16px !important;
+    gap: 16px !important;
   }
 
   .sidebar .btn-action {
     justify-content: flex-start !important;
+    padding: 12px !important;
+    font-size: 14px !important;
+    min-height: 44px !important; /* Touch-friendly target */
   }
 
-  /* Prevent logo from wrapping and pushing the navbar open */
-  .logo-text {
-    font-size: 13px !important;
-    white-space: nowrap !important;
-    line-height: 1.2 !important;
+  .sidebar .history-item {
+    padding: 12px !important;
+    min-height: 44px !important;
   }
 
-  .navbar-brand-click {
-    gap: 8px;
+  .sidebar .delete-history-btn {
+    opacity: 1 !important; /* Always visible on mobile (no hover) */
   }
 
-  .logo-icon {
-    width: 24px;
-    height: 24px;
+  .sidebar-toggle-container {
+    display: none !important; /* No collapse toggle on mobile */
   }
 
-  /* The protective backdrop that lets the user click off to close the sliding menu */
   .sidebar-mobile-overlay {
     position: fixed;
     inset: 0;
-    top: 64px;
+    top: 52px;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     z-index: 1999;
-    animation: fadeIn 0.2s ease-out;
+    animation: mobileOverlayFade 0.2s ease-out;
   }
 
-  /* The actual workspace takes the full viewport on mobile since sidebar is off-canvas */
-  .app-layout {
-    width: 100vw;
+  @keyframes mobileOverlayFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* ===================== WORKSPACE ===================== */
+  .workspace {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .workspace.no-scroll {
+    pointer-events: auto !important; /* Allow interaction on mobile even during load */
+  }
+
+  .workspace-centered-loader {
+    padding: 24px !important;
+  }
+
+  .workspace-overlay-loader {
+    z-index: 50 !important;
   }
 
   .graph-workspace-container {
-    padding: 0;
+    padding: 0 !important;
   }
 
-  .app-layout>.workspace {
-    width: 100%;
-    margin-left: 0 !important;
+  /* ===================== NODE EXPLORATION ===================== */
+  .node-explore-section {
+    padding: 0 0 60px 0 !important;
+  }
+
+  .node-explore-header {
+    text-align: center !important;
+    padding: 32px 16px 24px !important;
+  }
+
+  .node-explore-title {
+    font-size: 24px !important;
+    letter-spacing: -0.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Tabs — horizontal scroll on mobile */
+  .node-explore-tabs {
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0 16px !important;
+    gap: 4px !important;
+    margin-bottom: 24px !important;
+    scrollbar-width: none !important;
+  }
+  .node-explore-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .node-explore-tab-btn {
+    padding: 10px 16px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .node-explore-content {
+    max-width: 100% !important;
+    padding: 0 16px !important;
+  }
+
+  /* Text response mobile */
+  .node-explore-overview {
+    font-size: 16px !important;
+    line-height: 1.7 !important;
+    margin: 0 0 28px 0 !important;
+  }
+
+  .node-explore-section-heading {
+    font-size: 13px !important;
+    letter-spacing: 1px !important;
+    margin: 0 0 12px 0 !important;
+  }
+
+  .node-explore-section-body {
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+  }
+
+  .node-explore-bullets li {
+    font-size: 15px !important;
+    gap: 8px !important;
+  }
+
+  .node-explore-section-block {
+    margin-bottom: 24px !important;
+  }
+
+  /* Images grid — single column on mobile */
+  .node-explore-images {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .node-explore-image-item:hover {
+    transform: none !important; /* Disable lift on touch devices */
+  }
+
+  /* Videos */
+  .node-explore-video-list-item {
+    padding: 12px !important;
+  }
+
+  .node-explore-video-title {
+    font-size: 14px !important;
+  }
+
+  /* References */
+  .node-explore-ref-title {
+    font-size: 15px !important;
+  }
+
+  .node-explore-ref-desc {
+    font-size: 14px !important;
+  }
+
+  .node-explore-ref-item {
+    padding-bottom: 20px !important;
+  }
+
+  /* Ask Tab */
+  .ask-input-wrapper {
+    flex-direction: column !important;
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+
+  .ask-input {
+    font-size: 14px !important;
+    padding: 10px 12px !important;
+  }
+
+  .ask-send-btn {
+    width: 100% !important;
+    padding: 12px !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+  }
+
+  .ask-message-content {
+    max-width: 92% !important;
+    font-size: 14px !important;
+    padding: 12px 16px !important;
+  }
+
+  .ask-response-text {
+    font-size: 15px !important;
+  }
+
+  .ask-skeleton {
+    max-width: 92% !important;
+  }
+
+  /* Exploration Stack */
+  .exploration-stack .node-explore-section {
+    padding-bottom: 40px !important;
+  }
+
+  .exploration-stack .node-explore-section:last-child {
+    padding-bottom: 80px !important;
+  }
+
+  /* Node explore loading */
+  .node-explore-loading {
+    padding: 32px 0 !important;
+    font-size: 13px !important;
+  }
+
+  /* ===================== FULLSCREEN IMAGE VIEWER ===================== */
+  .image-viewer-content {
+    max-width: 96vw !important;
+    border-radius: 8px !important;
+  }
+
+  .image-viewer-close {
+    top: 8px !important;
+    right: 8px !important;
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* ===================== NODE DETAILS PANEL ===================== */
+  .node-details-panel {
+    width: 100% !important;
+    top: auto !important;
+    bottom: 0 !important;
+    height: 60vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    z-index: 600 !important;
+  }
+
+  .panel-content {
+    border-radius: 20px 20px 0 0 !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border) !important;
+  }
+
+  /* ===================== EXPLANATION PANEL ===================== */
+  .explanation-panel {
+    padding: 0 !important;
+  }
+
+  .explanation-content {
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    height: 100% !important;
+  }
+
+  .explanation-header {
+    padding: 16px !important;
+  }
+
+  .explanation-body {
+    padding: 16px !important;
+    max-height: calc(100vh - 60px) !important;
+  }
+
+  .explanation-section {
+    flex-direction: column !important;
+    padding: 16px !important;
+    gap: 12px !important;
+  }
+
+  /* ===================== CHAT PANELS ===================== */
+  .floating-chat-btn {
+    bottom: 80px !important;
+    right: 16px !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .chat-overlay-container {
+    top: 52px !important;
+    right: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  .floating-chat-panel {
+    top: 52px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  /* ===================== FULLSCREEN MODAL ===================== */
+  .fullscreen-modal {
+    padding: 0 !important;
+  }
+
+  .modal-content {
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  .modal-header {
+    padding: 0 16px !important;
+    height: 56px !important;
+  }
+
+  .modal-header h3 {
+    font-size: 16px !important;
+  }
+
+  /* ===================== PROGRAMMING VIEW ===================== */
+  .programming-view-container {
+    overflow-y: auto !important;
+  }
+
+  .editor-toolbar,
+  .graph-toolbar {
+    height: 40px !important;
+    padding: 0 8px !important;
+  }
+
+  .toolbar-title {
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+  }
+
+  .language-select {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+
+  .toolbar-btn {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+    gap: 4px !important;
+  }
+
+  .btn-analyze {
+    padding: 4px 12px !important;
+    font-size: 11px !important;
+    gap: 6px !important;
+  }
+
+  .editor-footer {
+    height: 44px !important;
+    padding: 0 8px !important;
+  }
+
+  .run-btn {
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+  }
+
+  /* Terminal */
+  .terminal-body {
+    font-size: 11px !important;
+    padding: 8px !important;
+  }
+
+  .terminal-header {
+    height: 32px !important;
+    padding: 0 8px !important;
+  }
+
+  .terminal-header span {
+    font-size: 10px !important;
+  }
+
+  /* Logic Summary */
+  .logic-summary-panel .panel-body {
+    font-size: 13px !important;
+    padding: 12px !important;
+  }
+
+  /* Resize handles — bigger touch targets */
+  .resize-handle {
+    width: 10px !important;
+  }
+  .resize-handle-v {
+    height: 10px !important;
+  }
+
+  /* ===================== GRAPH WORKSPACE ===================== */
+  .workspace > .organic-tree-container,
+  .workspace > * > .organic-tree-container {
+    min-height: calc(100vh - 120px) !important;
+  }
+
+  /* End-of-graph divider */
+  .graph-end-divider {
+    width: 90% !important;
+    margin: 24px auto !important;
+  }
+  .graph-end-divider .divider-text {
+    font-size: 0.75rem !important;
+    letter-spacing: 1.5px !important;
+    gap: 6px !important;
+  }
+
+  /* ===================== SPLIT VIEW ===================== */
+  .workspace.split-view {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr 1fr !important;
   }
 }

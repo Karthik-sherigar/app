@@ -1,11 +1,11 @@
 .pdf-explore-app {
     width: 100vw;
-    height: 100vh;
+    min-height: 100vh;
     background-color: #0b1220;
     color: #f9fafb;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-x: hidden;
     font-family: 'Inter', sans-serif;
 }
 
@@ -41,6 +41,7 @@
 
 .explore-nav {
     height: 60px;
+    min-height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -49,6 +50,8 @@
     backdrop-filter: blur(12px);
     border-bottom: 1px solid #1f2937;
     z-index: 100;
+    position: sticky;
+    top: 0;
 }
 
 .back-btn {
@@ -78,15 +81,14 @@
 }
 
 .explore-workspace {
-    flex: 1;
+    flex: 1 0 auto;
     display: flex;
-    overflow: hidden;
 }
 
 .main-content-area {
     flex: 1;
-    overflow-y: auto;
-    padding: 40px 60px 80px;
+    min-width: 0;
+    padding: 40px 60px 40px;
     background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent);
 }
 
@@ -131,6 +133,12 @@
     margin-bottom: 40px;
     padding-bottom: 32px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.academic-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
 }
 
 .section-label {
@@ -459,7 +467,10 @@
     border-left: 1px solid #1f2937;
     display: flex;
     flex-direction: column;
-    position: relative;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    align-self: flex-start;
     box-shadow: -10px 0 30px rgba(0,0,0,0.3);
     transition: width 0.3s ease;
     flex-shrink: 0;
@@ -827,7 +838,7 @@
     }
 
     .main-content-area {
-        padding: 20px 16px 80px; /* Give room for the FAB to not overlap text */
+        padding: 20px 16px 70px; /* Give room for the FAB to not overlap text */
     }
 
     .exploration-header h1 {

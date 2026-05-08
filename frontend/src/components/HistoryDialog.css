@@ -320,8 +320,71 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+    .history-dialog-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .history-dialog-content {
+        max-width: 100%;
+        max-height: 90vh;
+        border-radius: 20px 20px 0 0;
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .history-dialog-header {
+        padding: 16px;
+    }
+
+    .header-title h2 {
+        font-size: 16px;
+    }
+
+    .history-dialog-search {
+        padding: 12px 16px;
+    }
+
+    .history-dialog-search input {
+        padding: 10px 10px 10px 36px;
+        font-size: 13px;
+    }
+
+    .search-icon {
+        left: 28px;
+    }
+
+    .history-dialog-body {
+        padding: 16px;
+    }
+
     .history-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .history-card {
+        padding: 14px;
+        border-radius: 12px;
+    }
+
+    .card-preview {
+        font-size: 13px;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+    }
+
+    .card-delete-btn {
+        opacity: 1; /* Always show on mobile */
+    }
+
+    .card-footer {
+        font-size: 10px;
+    }
+
+    .empty-icon-box {
+        width: 60px;
+        height: 60px;
     }
 }

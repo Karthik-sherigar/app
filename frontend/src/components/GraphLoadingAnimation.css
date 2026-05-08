@@ -436,3 +436,121 @@
         opacity: 0.5;
     }
 }
+
+/* =========================================
+   MOBILE OVERRIDES
+   ========================================= */
+@media (max-width: 768px) {
+    .graph-loading-container {
+        padding: 16px;
+    }
+
+    .skeleton-tree-wrapper {
+        width: 100%;
+        max-width: 340px;
+        height: 280px;
+    }
+
+    .skeleton-node {
+        width: 130px;
+        height: 38px;
+        padding: 0 10px;
+        border-radius: 19px;
+    }
+
+    .skeleton-icon-box {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+    }
+
+    .skeleton-icon-box svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    .skeleton-text-lines {
+        gap: 4px;
+    }
+
+    .skeleton-line {
+        height: 4px;
+    }
+
+    .tree-glow-bg {
+        width: 280px;
+        height: 280px;
+    }
+
+    .loading-status-overlay {
+        bottom: 12px;
+        transform: translateX(0);
+    }
+
+    .typewriter-status {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        padding: 6px 14px;
+        border-radius: 16px;
+        gap: 6px;
+    }
+
+    .typing-dot {
+        width: 4px;
+        height: 4px;
+    }
+
+    /* Programming Loader Mobile */
+    .programming-loader-container {
+        padding: 16px;
+    }
+
+    .logic-core-wrapper {
+        width: 150px;
+        height: 150px;
+    }
+
+    .logic-center-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+    }
+
+    .logic-center-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .programming-loader-footer {
+        margin-top: 24px;
+    }
+
+    .current-task-text {
+        font-size: 11px;
+        letter-spacing: 2px;
+        margin-bottom: 6px;
+    }
+
+    .task-progress-dots {
+        gap: 5px;
+    }
+
+    .progress-dot {
+        width: 4px;
+        height: 4px;
+    }
+
+    /* Minimal Loader */
+    .minimal-loader {
+        width: 200px;
+    }
+
+    .loading-subtitle {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+    }
+
+    .matrix-column {
+        font-size: 8px;
+    }
+}

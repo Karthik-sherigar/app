@@ -137,3 +137,31 @@
 .bottom-input-bar .query-input::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
 }
+
+/* =========================================
+   MOBILE OVERRIDES
+   ========================================= */
+@media (max-width: 768px) {
+    .bottom-input-bar {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .bottom-input-bar .input-container {
+        max-width: 100%;
+        border-radius: 16px;
+        padding: 0.5rem 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .bottom-input-bar .query-input {
+        font-size: 0.88rem;
+        line-height: 1.4;
+        max-height: 80px;
+    }
+
+    .bottom-input-bar .btn-clear,
+    .bottom-input-bar .btn-submit {
+        width: 32px;
+        height: 32px;
+    }
+}

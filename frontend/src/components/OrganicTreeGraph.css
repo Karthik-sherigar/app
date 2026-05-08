@@ -165,11 +165,51 @@
 /* Responsive */
 @media (max-width: 768px) {
     .tree-nodes-layer {
-        padding: 20px 10px;
+        padding: 20px 8px;
     }
 
     .tree-connection-path {
         stroke-width: 1.5;
+    }
+
+    .organic-graph-header {
+        padding: 8px 16px;
+        border-radius: 24px;
+        top: 16px;
+        max-width: calc(100vw - 32px);
+    }
+
+    .organic-graph-header h2 {
+        font-size: 14px;
+        letter-spacing: 0.8px;
+    }
+
+    .tree-scroll-wrapper {
+        padding-top: 56px;
+    }
+
+    .graph-zoom-controls {
+        bottom: 12px;
+        right: 12px;
+        gap: 4px;
+    }
+
+    .zoom-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+    }
+
+    .tree-empty {
+        padding: 24px 16px;
+    }
+
+    .tree-empty h3 {
+        font-size: 18px;
+    }
+
+    .tree-empty p {
+        font-size: 12px;
     }
 }
 

@@ -420,3 +420,82 @@
   font-size: 12px;
   margin: 0;
 }
+
+@media (max-width: 768px) {
+  .home-dashboard {
+    padding: 20px 16px;
+    gap: 20px;
+  }
+
+  .greeting-block h1 {
+    font-size: 22px;
+  }
+
+  .greeting-block p {
+    font-size: 14px;
+  }
+
+  .modes-grid {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mode-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .mode-card h3 {
+    font-size: 15px;
+    margin: 0 0 6px 0;
+  }
+
+  .mode-card p {
+    font-size: 12px;
+    margin: 0 0 16px 0;
+  }
+
+  .mode-arrow {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .activity-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .activity-card {
+    padding: 14px;
+  }
+
+  .activity-content h4 {
+    font-size: 13px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card-glass {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .section-title {
+    font-size: 17px;
+  }
+
+  .home-footer {
+    margin-top: 16px;
+  }
+
+  .footer-tagline {
+    font-size: 12px;
+  }
+
+  .footer-copyright {
+    font-size: 10px;
+  }
+}

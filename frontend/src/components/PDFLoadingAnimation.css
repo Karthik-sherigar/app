@@ -116,3 +116,37 @@
 .pdf-step.completed .pdf-step-text {
     color: #9ca3af; /* Light gray for finished */
 }
+
+/* =========================================
+   MOBILE OVERRIDES
+   ========================================= */
+@media (max-width: 768px) {
+    .pdf-loader-container {
+        padding: 24px;
+    }
+
+    .pdf-loader-title {
+        font-size: 22px;
+        margin-bottom: 24px;
+    }
+
+    .pdf-step {
+        gap: 12px;
+        min-height: 48px;
+    }
+
+    .pdf-step-text {
+        font-size: 14px;
+    }
+
+    .pdf-static-circle,
+    .pdf-spinner-circle {
+        width: 20px;
+        height: 20px;
+    }
+
+    .pdf-step-line {
+        top: 20px;
+        bottom: -8px;
+    }
+}

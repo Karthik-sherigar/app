@@ -98,3 +98,39 @@
         transform: translateY(0);
     }
 }
+
+/* =========================================
+   MOBILE OVERRIDES
+   ========================================= */
+@media (max-width: 768px) {
+    .skeleton-wrapper {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .skeleton-header {
+        height: 28px;
+        width: 80%;
+        margin: 0 auto 0.75rem auto;
+        border-radius: 6px;
+    }
+
+    .skeleton-tabs {
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .skeleton-tab {
+        height: 28px;
+        width: 80px;
+        border-radius: 14px;
+    }
+
+    .skeleton-content {
+        gap: 0.75rem;
+    }
+
+    .skeleton-line {
+        height: 12px;
+    }
+}
